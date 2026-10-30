@@ -1,0 +1,3233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Slope Rider</title>
+<meta name="description" content="A snowboard game for Year 8: plot linear graphs, find gradients and intercepts, and write y = mx + c.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Exo+2:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script>
+// If anything stops the game from starting, show what happened instead of a blank page.
+(function () {
+  function show(msg) {
+    if (document.getElementById('boot-error')) return;
+    var box = document.createElement('div');
+    box.id = 'boot-error';
+    box.setAttribute('role', 'alert');
+    box.style.cssText = 'position:fixed;inset:auto 16px 16px 16px;z-index:99;padding:16px 18px;border-radius:12px;background:#2a0f2f;color:#fff;border:2px solid #ff4d5e;font:15px/1.5 system-ui,sans-serif;max-width:46rem;margin:0 auto';
+    box.innerHTML = '<b>Slope Rider hit a problem and could not start properly.</b><br>Try reloading. If it keeps happening, reset saved progress or try another browser.<br><code style="display:block;margin:8px 0;white-space:pre-wrap;color:#ffe14d"></code><button type="button" style="font:inherit;padding:6px 12px;border-radius:8px;border:0;background:#a6ff2e;cursor:pointer">Reset saved progress and reload</button>';
+    box.querySelector('code').textContent = String(msg).slice(0, 400);
+    box.querySelector('button').onclick = function () { try { localStorage.removeItem('slopeRider.v1'); } catch (e) {} location.reload(); };
+    (document.body || document.documentElement).appendChild(box);
+  }
+  window.__srBootError = show;
+  window.addEventListener('error', function (e) {
+    // Only the game's own scripts count. Errors from browser extensions arrive with another file or as a bare "Script error."
+    var page = location.href.split('#')[0];
+    if (!e.filename || e.filename.split('#')[0] !== page) return;
+    show((e.message || 'Script error') + (e.lineno ? ' (line ' + e.lineno + ')' : ''));
+  });
+  window.addEventListener('unhandledrejection', function (e) { show(e.reason && e.reason.message || e.reason); });
+  window.addEventListener('load', function () {
+    var app = document.getElementById('app');
+    if (app && !app.children.length) show('The game screen did not load. JavaScript may be blocked for local files by a browser extension or setting.');
+  });
+})();
+</script>
+<style>
+/* Slope Rider: Geometry Dash on snow. Neon on a dark block grid, chunky outlined type. One dark look by design. */
+:root {
+  --bg: #120B33;
+  --sky: #24127F;
+  --panel: #1B1350;
+  --panel-2: #241A68;
+  --edge: #3D3199;
+  --fg: #F4F1FF;
+  --muted: #BBB4EA;
+  --ink: #07041A;
+  --cyan: #19E3FF;
+  --lime: #A6FF2E;
+  --pink: #FF3DCB;
+  --yellow: #FFE14D;
+  --orange: #FF8A1F;
+  --purple: #8B5CFF;
+  --red: #FF4D5E;
+  --green: #3DF58B;
+  --blue: #4D8DFF;
+  --display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+  --body: "Exo 2", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --hud-h: 64px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
+    linear-gradient(180deg, var(--sky) 0, var(--bg) 700px);
+  background-size: 40px 40px, 40px 40px, 100% 100%;
+  color: var(--fg);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+h1, h2, h3 { font-family: var(--display); font-weight: 400; margin: 0; line-height: 1.05; text-wrap: balance; }
+p { margin: 0; }
+b, strong { font-weight: 700; }
+.outline {
+  text-shadow: -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink), 2px 2px 0 var(--ink), 0 3px 0 var(--ink);
+}
+.eq {
+  font-family: var(--mono); font-size: 0.92em; white-space: nowrap;
+  background: var(--ink); color: var(--yellow); padding: 0.05em 0.4em; border-radius: 5px; border: 1px solid var(--edge);
+}
+.eyebrow { font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.18em; color: var(--lime); }
+[hidden] { display: none !important; }
+
+/* ---------- buttons ---------- */
+.btn {
+  font-family: var(--display); font-size: 1.2rem; letter-spacing: 0.02em; line-height: 1;
+  padding: 0.7em 1.2em; border-radius: 12px; border: 3px solid var(--ink);
+  background: var(--lime); color: var(--ink); cursor: pointer;
+  box-shadow: 0 4px 0 var(--ink), 0 0 0 2px rgba(255,255,255,0.15);
+  transition: transform 0.06s, box-shadow 0.06s, filter 0.15s;
+  touch-action: manipulation;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn:focus-visible, .opt:focus-visible, .toggle:focus-visible, .run-card:focus-visible, .linkbtn:focus-visible {
+  outline: 3px solid var(--cyan); outline-offset: 3px;
+}
+.btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+.btn.small { font-size: 1rem; padding: 0.5em 0.9em; border-radius: 10px; }
+.btn.secondary { background: var(--panel-2); color: var(--fg); box-shadow: 0 4px 0 var(--ink), 0 0 0 2px var(--edge); }
+.btn.ghost { background: rgba(7,4,26,0.55); color: var(--fg); box-shadow: 0 3px 0 var(--ink), 0 0 0 2px var(--edge); }
+.btn.danger { background: var(--red); color: var(--ink); }
+.btn.danger-ghost { background: transparent; color: var(--red); box-shadow: 0 0 0 2px var(--red); border-color: transparent; }
+.linkbtn { background: none; border: 0; color: var(--cyan); font: inherit; font-weight: 700; cursor: pointer; padding: 0.2rem 0.3rem; text-decoration: underline; text-underline-offset: 3px; }
+
+/* ---------- map screen ---------- */
+.screen { min-height: 100vh; min-height: 100dvh; }
+.map-screen, .pass-screen {
+  max-width: 68rem; margin: 0 auto; display: grid; gap: 1.6rem; align-content: start;
+  padding-block: 1.5rem 3rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.title { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 1.5rem; align-items: center; }
+.title-art { width: 100%; height: auto; display: block; border-radius: 14px; border: 3px solid var(--ink); box-shadow: 0 0 0 2px var(--edge), 0 14px 40px rgba(0,0,0,0.45); }
+.title-text { display: grid; gap: 0.5rem; }
+.title h1 { font-size: clamp(3rem, 9vw, 5.6rem); }
+.tag { font-size: 1.15rem; color: var(--muted); }
+.howto { max-width: 70ch; color: var(--muted); font-size: 1.02rem; }
+.howto b { color: var(--fg); }
+.runs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem; }
+.run-card {
+  font: inherit; color: var(--fg); text-align: left; cursor: pointer;
+  display: grid; gap: 0.45rem; align-content: start;
+  padding: 1rem 1.1rem 1.1rem; border-radius: 14px; border: 3px solid var(--ink);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--glow) 22%, var(--panel-2)), var(--panel) 65%);
+  box-shadow: 0 0 0 2px var(--edge), 0 0 24px -8px var(--glow), 0 5px 0 var(--ink);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.run-card:hover:not([disabled]) { transform: translateY(-3px); box-shadow: 0 0 0 2px var(--glow), 0 0 30px -4px var(--glow), 0 8px 0 var(--ink); }
+.run-card.locked { cursor: not-allowed; filter: grayscale(0.75) brightness(0.7); }
+.rc-top { display: flex; align-items: center; gap: 0.55rem; font-size: 0.82rem; color: var(--muted); }
+.rc-top .sign { width: 26px; height: 26px; flex: none; }
+.rc-num { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.rc-status { margin-left: auto; font-weight: 700; color: var(--fg); }
+.run-card.cleared .rc-status { color: var(--lime); }
+.rc-name { font-family: var(--display); font-size: 1.9rem; line-height: 1; }
+.rc-topic { color: var(--muted); font-size: 0.95rem; min-height: 2.8em; }
+.rc-bar { height: 12px; border-radius: 6px; background: rgba(7,4,26,0.6); border: 2px solid var(--ink); box-shadow: 0 0 0 1px rgba(255,255,255,0.25); overflow: hidden; }
+.rc-bar b { display: block; height: 100%; background: linear-gradient(90deg, var(--lime), #5CFF8A); }
+.rc-acc { font-size: 0.85rem; color: var(--muted); }
+.map-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.teacher-badge { font-size: 0.85rem; font-weight: 700; color: var(--ink); background: var(--yellow); padding: 0.3rem 0.7rem; border-radius: 8px; border: 2px solid var(--ink); }
+
+/* ---------- lift pass ---------- */
+.pass-screen { max-width: 46rem; justify-items: stretch; }
+.pass-screen > .btn { justify-self: start; }
+.pass {
+  border: 3px solid var(--ink); border-radius: 18px; overflow: hidden;
+  background: linear-gradient(160deg, #3A1FB0, #1A2C9E 60%, #0F5AA8);
+  box-shadow: 0 0 0 2px var(--cyan), 0 0 36px -4px rgba(25,227,255,0.5);
+  font-variant-numeric: tabular-nums;
+}
+.pass-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.8rem 1.2rem; padding: 1.1rem 1.25rem 0.5rem; }
+.pass-top .t { font-family: var(--display); font-size: 2.6rem; line-height: 1; }
+.pass-name { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; }
+.pass-name input { font: inherit; font-size: 1.05rem; text-transform: none; letter-spacing: 0; width: 12rem; max-width: 50vw; padding: 0.45rem 0.6rem; border-radius: 8px; border: 2px solid var(--ink); background: rgba(7,4,26,0.55); color: var(--fg); }
+.pass-name input:focus { outline: 3px solid var(--cyan); outline-offset: 1px; }
+.pass-head { display: grid; grid-template-columns: 10rem minmax(0, 1fr); column-gap: 0.8rem; padding: 0.4rem 1.25rem 0; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(244,241,255,0.75); }
+.pass-rows { display: grid; gap: 0.75rem; padding: 0.8rem 1.25rem 1rem; }
+.prow { display: grid; grid-template-columns: 10rem minmax(0, 1fr) 3.4rem; grid-template-rows: auto auto; column-gap: 0.8rem; row-gap: 0.15rem; align-items: center; }
+.prow.locked { opacity: 0.55; }
+.runname { display: inline-flex; align-items: center; gap: 0.5rem; font-weight: 700; min-width: 0; }
+.runname svg { width: 18px; height: 18px; flex: none; }
+.bar { height: 18px; border-radius: 9px; background: rgba(7,4,26,0.6); border: 2px solid var(--ink); box-shadow: 0 0 0 1px rgba(255,255,255,0.35); overflow: hidden; }
+.bar b { display: block; height: 100%; background: linear-gradient(90deg, var(--lime), #5CFF8A); }
+.pct { font-family: var(--display); font-size: 1.15rem; text-align: right; }
+.pdetail { grid-column: 2 / 4; font-size: 0.8rem; color: rgba(244,241,255,0.8); }
+.pass-foot { font-size: 0.9rem; padding: 0.7rem 1.25rem 1rem; border-top: 2px dashed rgba(255,255,255,0.25); }
+.reset-zone { justify-self: start; }
+.unlock-zone { display: flex; flex-wrap: wrap; align-items: center; gap: 0.7rem; justify-self: start; }
+.unlock-note { color: var(--muted); }
+.confirm.ok { border-color: var(--lime); }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; background: var(--panel); border: 2px solid var(--red); border-radius: 12px; padding: 0.8rem 1rem; }
+.confirm p { flex-basis: 100%; }
+
+/* ---------- run screen ---------- */
+.run-screen { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+.hud {
+  height: var(--hud-h); flex: none; display: flex; align-items: center; gap: 0.9rem;
+  padding-block: 0;
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+  background: rgba(7,4,26,0.6); border-bottom: 3px solid var(--ink); box-shadow: 0 2px 0 var(--edge);
+}
+.hud-run { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.hud-run .sign { width: 26px; height: 26px; flex: none; }
+.hud-name { font-family: var(--display); font-size: 1.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pill { font-weight: 800; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.3rem 0.65rem; border-radius: 999px; border: 2px solid var(--ink); background: var(--cyan); color: var(--ink); white-space: nowrap; }
+.pill.challenge { background: var(--yellow); }
+.hud-progress { flex: 1 1 auto; max-width: 340px; margin-left: auto; display: flex; align-items: center; gap: 0.6rem; }
+.progress { flex: 1; height: 20px; border-radius: 10px; border: 2.5px solid var(--fg); background: rgba(7,4,26,0.65); box-shadow: 0 0 0 2px var(--ink); overflow: hidden; }
+.progress b { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--lime), #6CFF7E); transition: width 0.45s cubic-bezier(.3,1.4,.5,1); }
+.hud-pct { font-family: var(--display); font-size: 1.3rem; min-width: 3.2rem; text-align: right; }
+.hud-attempt { font-family: var(--display); font-size: 1.1rem; white-space: nowrap; }
+.stage {
+  flex: 1; min-height: 0; display: flex; gap: 1rem; justify-content: center; align-items: stretch;
+  height: calc(100vh - var(--hud-h)); height: calc(100dvh - var(--hud-h));
+  padding-block: 0.8rem 0.9rem;
+  padding-left: max(14px, env(safe-area-inset-left, 0px));
+  padding-right: max(14px, env(safe-area-inset-right, 0px));
+}
+.graph-wrap {
+  height: 100%; aspect-ratio: 408 / 678; max-width: calc(100vw - 25rem); flex: none;
+  border-radius: 14px; border: 3px solid var(--ink); overflow: hidden;
+  box-shadow: 0 0 0 2px var(--edge), 0 0 30px -10px var(--glow), 0 14px 36px rgba(0,0,0,0.45);
+  background: #0E0828;
+}
+.graph { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+.graph.tappable { cursor: crosshair; }
+.panel {
+  flex: 0 1 31rem; min-width: 20rem; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 0.9rem;
+  background: var(--panel); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 0 0 2px var(--edge);
+  padding: 1rem 1.1rem 1.2rem;
+}
+.phead { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.pmeta { color: var(--muted); font-size: 0.88rem; font-weight: 600; }
+.pextra { margin-left: auto; }
+.coach { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 0.75rem; align-items: start; }
+.avatar { width: 56px; height: 56px; border-radius: 12px; border: 3px solid var(--ink); background: linear-gradient(160deg, #2B1590, #0E0828); box-shadow: 0 0 0 2px var(--edge); display: grid; place-items: center; }
+.avatar svg { width: 48px; height: 48px; }
+.bubble { font-size: 1.05rem; line-height: 1.5; padding-top: 0.15rem; }
+.bubble b { color: var(--yellow); }
+.work { display: grid; gap: 0.85rem; }
+.counter { color: var(--muted); font-size: 0.95rem; }
+.counter b { color: var(--fg); }
+.tip { color: var(--muted); font-size: 0.82rem; }
+.fb { min-height: 1.4em; font-size: 1rem; }
+.fb:empty { display: none; }
+.fb.good { color: var(--lime); }
+.fb.bad { color: var(--red); }
+.fb.info { color: var(--cyan); }
+.fb b { font-family: var(--display); font-weight: 400; font-size: 1.15em; letter-spacing: 0.02em; }
+.hintbox { border-left: 5px solid var(--yellow); background: rgba(255,225,77,0.08); border-radius: 0 10px 10px 0; padding: 0.6rem 0.85rem; display: grid; gap: 0.25rem; }
+.hintbox.solution { border-left-color: var(--cyan); background: rgba(25,227,255,0.08); }
+.hint-label { font-weight: 800; font-size: 0.72rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--yellow); }
+.hintbox.solution .hint-label { color: var(--cyan); }
+.hint-body { font-size: 0.98rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 0.7rem; margin-top: auto; padding-top: 0.2rem; }
+.actions:empty { display: none; }
+
+/* inputs */
+.ans {
+  font-family: var(--mono); font-weight: 600; font-size: 1.15rem; text-align: center;
+  width: 4.6rem; min-width: 0; padding: 0.4rem 0.3rem; border-radius: 8px;
+  background: var(--ink); color: var(--yellow); border: 2px solid var(--edge);
+}
+.ans:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(25,227,255,0.35); }
+.ans.ok { border-color: var(--lime); color: var(--lime); }
+.ans.bad { border-color: var(--red); color: var(--red); animation: shake 0.35s; }
+.ans:disabled { opacity: 1; cursor: default; }
+.numrow { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 1.05rem; }
+.numrow .pre { font-weight: 600; }
+.numrow .post:empty { display: none; }
+.eqw { display: flex; align-items: center; gap: 0.5rem; font-family: var(--mono); font-weight: 600; font-size: 1.45rem; flex-wrap: wrap; }
+.eqw .ans { width: 5.2rem; font-size: 1.25rem; }
+
+/* tables */
+.tbl { display: grid; gap: 0.35rem 0; align-items: center; font-family: var(--mono); font-weight: 600; }
+.th { font-family: var(--display); font-size: 1.25rem; color: var(--cyan); text-align: center; }
+.th.small { font-family: var(--body); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.cell { text-align: center; padding: 0.3rem 0.15rem; border-radius: 7px; border: 2px solid transparent; font-size: 1.1rem; min-width: 0; }
+.cell.xc { background: rgba(25,227,255,0.1); }
+.cell.yc { background: rgba(255,225,77,0.08); }
+.cell.ok { border-color: var(--lime); }
+.cell.bad { border-color: var(--red); }
+.cell.hl { border-color: var(--yellow); box-shadow: 0 0 14px rgba(255,225,77,0.5); }
+.cell .ans { width: 100%; font-size: 1.05rem; padding: 0.3rem 0.1rem; }
+.cell.dc { padding: 0; }
+.cell.dc .ans { font-size: 0.95rem; color: var(--lime); }
+.dbub { display: inline-block; font-size: 0.9rem; color: var(--lime); background: rgba(166,255,46,0.12); border: 1px solid rgba(166,255,46,0.5); border-radius: 999px; padding: 0.05rem 0.4rem; animation: pop 0.35s; }
+.dbub.hint { color: var(--yellow); border-color: var(--yellow); background: rgba(255,225,77,0.12); }
+.tbl-wrap { display: grid; gap: 0.35rem; }
+.tbl-title { font-weight: 700; }
+.tbl-wrap.a .tbl-title { color: var(--green); }
+.tbl-wrap.b .tbl-title { color: var(--cyan); }
+
+/* explore bits */
+.choice { display: grid; gap: 0.55rem; padding: 0.8rem 0.9rem; border-radius: 12px; background: rgba(7,4,26,0.4); border: 2px solid var(--edge); }
+.choice .q { font-weight: 600; font-size: 1.05rem; }
+.opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.opt, .toggle {
+  font: inherit; font-weight: 700; color: var(--fg); cursor: pointer;
+  padding: 0.55rem 0.9rem; border-radius: 10px; border: 2px solid var(--edge);
+  background: var(--panel-2); box-shadow: 0 3px 0 var(--ink);
+  touch-action: manipulation;
+}
+.opt:hover:not(:disabled), .toggle:hover:not(:disabled) { border-color: var(--cyan); }
+.opt.ok { background: var(--lime); color: var(--ink); border-color: var(--ink); }
+.opt.bad { border-color: var(--red); color: var(--red); text-decoration: line-through; opacity: 0.8; }
+.opt:disabled { cursor: default; }
+.verdict { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.toggle[aria-pressed="true"] { background: var(--yellow); color: var(--ink); border-color: var(--ink); }
+.toggle:disabled { cursor: default; }
+.readout { font-family: var(--mono); font-size: 1rem; padding: 0.55rem 0.8rem; border-radius: 10px; background: var(--ink); border: 1px solid var(--edge); color: var(--fg); }
+.readout b { color: var(--yellow); }
+.readout.big { font-size: 1.5rem; color: var(--yellow); display: grid; gap: 0.2rem; }
+.readout-sub { font-size: 0.9rem; color: var(--muted); }
+
+/* ---------- graph contents ---------- */
+.gridlines { stroke: rgba(255,255,255,0.11); stroke-width: 1; fill: none; }
+.axis { stroke: rgba(255,255,255,0.6); stroke-width: 2; fill: none; transition: stroke 0.2s; }
+.axis.hot { stroke: var(--cyan); stroke-width: 4; filter: url(#glow); animation: blink 1s ease-in-out infinite; }
+.ticks text { font-family: var(--mono); font-size: 13px; font-weight: 600; fill: rgba(244,241,255,0.7); paint-order: stroke; stroke: #0E0828; stroke-width: 3px; stroke-linejoin: round; }
+.ticks .axis-name { font-family: var(--display); font-size: 16px; fill: var(--fg); }
+.run-line { stroke-width: 5; stroke-linecap: round; fill: none; filter: url(#glow); }
+.run-line.student { stroke: var(--pink); stroke-width: 4; stroke-dasharray: 12 9; }
+.run-line.ghost-line { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 6 7; opacity: 0.8; filter: none; }
+.run-line.built { stroke: var(--orange); }
+.run-line.mogul { stroke: var(--orange); stroke-linejoin: round; }
+.graph.pulse .layer-lines .run-line { animation: linepulse 0.9s ease-out; }
+.dot { stroke: var(--ink); stroke-width: 2.5; fill: var(--fg); }
+.dot.pick { fill: var(--yellow); }
+.dot.pick.bad { fill: var(--red); }
+.dot.anchor { fill: var(--cyan); }
+.dot.hint-dot { fill: none; stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 4 3; }
+.dot.plot-dot.a { fill: var(--green); }
+.dot.plot-dot.b { fill: var(--cyan); }
+.flag .pole { stroke: var(--fg); stroke-width: 3; }
+.flag .cloth { fill: var(--lime); stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; }
+.flag .foot { fill: var(--fg); stroke: var(--ink); stroke-width: 2; }
+.flag.mine .cloth { fill: var(--cyan); }
+.flag.gate .cloth { fill: var(--yellow); }
+.flag.bad .cloth { fill: var(--red); }
+.flag.bad .foot { fill: var(--red); }
+.flag.ghost { opacity: 0.85; }
+.flag.ghost .cloth { fill: none; stroke: var(--yellow); stroke-width: 2; stroke-dasharray: 3 2; }
+.flag.ghost .pole { stroke: var(--yellow); stroke-dasharray: 3 3; }
+.flag .flag-inner { transform-origin: 0 0; }
+.flag.fall .flag-inner { animation: flagfall 0.9s ease-in forwards; }
+.flag.hit .flag-inner { animation: gatehit 0.5s ease-out; }
+.gate-letter { font-family: var(--display); font-size: 18px; fill: var(--fg); }
+.glabel { font-family: var(--display); font-size: 14px; fill: var(--fg); paint-order: stroke; stroke: var(--ink); stroke-width: 4px; stroke-linejoin: round; }
+.glabel.big { font-size: 15px; }
+.station circle { fill: var(--cyan); stroke: var(--ink); stroke-width: 3; filter: url(#glow); }
+.station.yellow circle { fill: var(--yellow); }
+.station.cyan text { fill: var(--cyan); }
+.station.yellow text { fill: var(--yellow); }
+.guide { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 2 7; stroke-linecap: round; stroke-linejoin: round; }
+.tri-run { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 8 6; }
+.tri-rise { stroke: var(--pink); stroke-width: 3; stroke-dasharray: 8 6; }
+.tri-run-label { fill: var(--yellow); }
+.tri-rise-label { fill: var(--pink); }
+.tri.quiet line { opacity: 0.55; }
+.tri.ghost line { opacity: 0.9; stroke-dasharray: 3 5; }
+.handle { cursor: grab; outline: none; }
+.handle .hit { fill: transparent; }
+.handle .knob { fill: var(--orange); stroke: var(--ink); stroke-width: 3; filter: url(#glow); transition: r 0.1s; }
+.handle.base .knob { fill: var(--cyan); }
+.handle:hover .knob, .handle.dragging .knob { r: 14px; }
+.handle:focus-visible .knob { stroke: var(--fg); stroke-width: 4; }
+.handle.dragging { cursor: grabbing; }
+.handle.locked { cursor: default; }
+.handle.locked .knob { opacity: 0.5; }
+.hover-coords { font-family: var(--mono); font-weight: 600; font-size: 15px; fill: var(--cyan); pointer-events: none; }
+.hover-ring { fill: none; stroke: var(--cyan); stroke-width: 2.5; stroke-dasharray: 4 3; pointer-events: none; }
+.trail { fill: none; stroke: var(--cyan); stroke-width: 8; stroke-linecap: round; stroke-linejoin: round; opacity: 0.5; transition: opacity 0.4s; }
+.trail.fade { opacity: 0; }
+.shard { stroke: var(--ink); stroke-width: 1.2; }
+.boom { fill: none; stroke: var(--red); stroke-width: 4; animation: boom 0.6s ease-out forwards; }
+.banner, .attempt-pop { font-family: var(--display); fill: var(--fg); paint-order: stroke; stroke: var(--ink); stroke-linejoin: round; pointer-events: none; }
+.banner { font-size: 34px; stroke-width: 7px; animation: bannerpop 1.7s ease-out forwards; }
+.banner.warn { fill: var(--orange); }
+.attempt-pop { font-size: 34px; stroke-width: 7px; animation: attempt 2.2s ease-out forwards; }
+.arrow-flash .arrow { stroke: var(--yellow); stroke-width: 6; fill: none; stroke-linecap: round; stroke-linejoin: round; filter: url(#glow); }
+.arrow-flash { animation: flash 2.4s ease-out forwards; }
+.fog rect { fill: rgba(14,8,40,0.92); }
+.fog-title { font-family: var(--display); font-size: 40px; fill: var(--fg); paint-order: stroke; stroke: var(--ink); stroke-width: 7px; }
+.fog-sub { font-family: var(--body); font-weight: 700; font-size: 17px; fill: var(--muted); }
+.bob { animation: bob 1.2s ease-in-out infinite; }
+.rider, .trail, .layer-fx, .layer-overlay { pointer-events: none; }
+
+/* ---------- ? help ---------- */
+.help-btn {
+  margin-left: 0.4rem; width: 2rem; height: 2rem; flex: none; border-radius: 50%;
+  font-family: var(--display); font-size: 1.15rem; line-height: 1; cursor: pointer;
+  background: var(--yellow); color: var(--ink); border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+}
+.pextra:empty + .help-btn { margin-left: auto; }
+.help-btn:hover { filter: brightness(1.08); }
+.help-btn:focus-visible { outline: 3px solid var(--cyan); outline-offset: 3px; }
+.rule-words { font-weight: 500; color: var(--muted); }
+.help-card {
+  width: min(52rem, 100%); max-height: calc(100dvh - 32px); overflow: auto; display: grid; gap: 0.75rem;
+  padding: 1.2rem 1.3rem 1.3rem; border-radius: 18px; border: 3px solid var(--ink);
+  background: var(--panel); box-shadow: 0 0 0 2px var(--yellow), 0 0 40px -8px var(--yellow);
+  animation: pop 0.3s cubic-bezier(.3,1.5,.5,1);
+}
+.help-top { display: flex; align-items: center; gap: 1rem; }
+.help-top h2 { font-size: 1.9rem; flex: 1; }
+.help-close { background: none; border: 0; color: var(--fg); font-size: 1.3rem; cursor: pointer; padding: 0.2rem 0.4rem; }
+.help-note { font-size: 0.82rem; color: var(--muted); }
+.help-body { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1.2rem; align-items: start; }
+.help-graph-wrap { border-radius: 12px; border: 3px solid var(--ink); background: linear-gradient(180deg, #2B1590, #0E0828); box-shadow: 0 0 0 2px var(--edge); overflow: hidden; }
+.help-graph { display: block; width: auto; height: min(52dvh, 360px); max-width: 100%; }
+.help-side { display: grid; gap: 0.7rem; align-content: start; min-width: 0; }
+.help-say { min-height: 3em; font-size: 1.08rem; }
+.help-say b { color: var(--yellow); }
+.help-work { min-height: 1.6em; font-family: var(--mono); font-size: 1.2rem; color: var(--fg); }
+.help-work b { color: var(--lime); }
+.help-count { min-height: 1.5em; font-weight: 700; color: var(--cyan); font-size: 1.05rem; }
+.help-count b { color: var(--yellow); font-size: 1.2em; }
+.help-verdict { margin: 0; }
+.help-foot { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.help-step { color: var(--muted); font-weight: 600; font-size: 0.9rem; }
+.help-actions { display: flex; gap: 0.6rem; margin-left: auto; }
+.help-dot { stroke: var(--ink); stroke-width: 2.5; }
+.help-dot.walker { fill: var(--yellow); r: 8px; filter: url(#glow); transition: cx 0.3s ease, cy 0.3s ease; }
+.help-dot.placed { fill: var(--lime); }
+.help-dot.mark { fill: none; stroke: var(--cyan); stroke-width: 3; r: 11px; }
+.help-trail { stroke: var(--yellow); stroke-width: 3; stroke-dasharray: 3 5; stroke-linecap: round; }
+.help-run { stroke: var(--yellow); stroke-width: 2.5; stroke-dasharray: 6 5; opacity: 0.7; }
+.help-rise { stroke: var(--pink); stroke-width: 4; stroke-linecap: round; }
+.help-rise-label { fill: var(--pink); font-size: 15px; }
+.help-line { stroke: var(--lime); stroke-width: 3; opacity: 0.7; }
+.help-curve { stroke: var(--orange); stroke-width: 3; }
+@media (max-width: 700px) { .help-body { grid-template-columns: 1fr; justify-items: center; } }
+.cell.pop { animation: pop 0.35s; color: var(--lime); }
+
+/* ---------- overlay ---------- */
+.overlay { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgba(7,4,26,0.72); animation: fadein 0.25s; }
+.cleared-card {
+  width: min(28rem, 100%); display: grid; gap: 0.8rem; justify-items: center; text-align: center;
+  padding: 1.6rem 1.4rem 1.4rem; border-radius: 18px; border: 3px solid var(--ink);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--glow) 30%, var(--panel-2)), var(--panel) 70%);
+  box-shadow: 0 0 0 2px var(--glow), 0 0 50px -6px var(--glow);
+  animation: pop 0.4s cubic-bezier(.3,1.5,.5,1);
+}
+.sign.big { width: 54px; height: 54px; }
+.cleared-card h2 { font-size: 2.6rem; }
+.cleared-sub { color: var(--muted); font-weight: 600; }
+.cleared-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; width: 100%; }
+.cleared-stats div { display: grid; gap: 0.1rem; background: rgba(7,4,26,0.45); border-radius: 10px; padding: 0.55rem 0.3rem; border: 2px solid var(--edge); }
+.cleared-stats b { font-family: var(--display); font-weight: 400; font-size: 1.7rem; }
+.cleared-stats span { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; }
+.cleared-note { color: var(--fg); }
+.cleared-actions { display: flex; flex-wrap: wrap; gap: 0.7rem; justify-content: center; }
+
+/* ---------- motion ---------- */
+@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+@keyframes pop { 0% { transform: scale(0.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+@keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes linepulse { 0% { stroke-width: 11; } 100% { stroke-width: 5; } }
+@keyframes flagfall { 0% { transform: rotate(0); opacity: 1; } 15% { transform: rotate(-16deg); } 30% { transform: rotate(14deg); } 100% { transform: rotate(95deg) translateY(10px); opacity: 0; } }
+@keyframes gatehit { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
+@keyframes boom { 0% { r: 6px; opacity: 1; } 100% { r: 46px; opacity: 0; } }
+@keyframes bannerpop { 0% { opacity: 0; transform: translateY(10px); } 12% { opacity: 1; transform: translateY(0); } 75% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes attempt { 0% { opacity: 0; } 10% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes flash { 0%, 100% { opacity: 0; } 10%, 30%, 50% { opacity: 1; } 20%, 40% { opacity: 0.3; } 80% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .bob { animation: none; }
+}
+
+/* ---------- smaller screens ---------- */
+@media (max-width: 900px) {
+  .runs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px), (max-aspect-ratio: 1/1) {
+  .run-screen { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
+  .stage { flex-direction: column; align-items: center; height: auto; }
+  .graph-wrap { height: min(52vh, 600px); height: min(52dvh, 600px); max-width: 100%; }
+  .panel { flex: none; width: 100%; max-width: 40rem; min-width: 0; overflow: visible; }
+  .hud { height: auto; min-height: var(--hud-h); flex-wrap: wrap; row-gap: 0.4rem; padding-block: 0.5rem; }
+  .hud-progress { order: 5; flex-basis: 100%; max-width: none; margin-left: 0; }
+}
+@media (max-width: 600px) {
+  .title { grid-template-columns: 1fr; }
+  .runs { grid-template-columns: 1fr; }
+  .prow { grid-template-columns: 7.5rem minmax(0, 1fr) 3rem; }
+  .hud-name { font-size: 1.2rem; }
+  .pill.hud-stage { display: none; }
+}
+.help-graph .ticks text { font-size: 11px; }
+.help-calc { display: grid; gap: 0.35rem; font-family: var(--body); font-size: 1.05rem; }
+.calc-row { display: grid; grid-template-columns: 7.5rem 1fr; align-items: baseline; gap: 0.6rem; padding: 0.35rem 0.6rem; border-radius: 8px; background: rgba(7,4,26,0.45); border: 1px solid var(--edge); animation: pop 0.3s; }
+.calc-k { font-weight: 800; font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--cyan); }
+.calc-v { font-family: var(--mono); font-size: 1.1rem; }
+.calc-v b { color: var(--lime); }
+.numrow.aligned .pre { min-width: 3.6rem; }
+
+.show-btn:disabled { opacity: 0.6; cursor: default; }
+.grow line { stroke-width: 4; stroke-linecap: round; filter: url(#glow); }
+.grow-run line { stroke: var(--yellow); }
+.grow-rise line { stroke: var(--pink); }
+.grow-run .grow-label { fill: var(--yellow); }
+.grow-rise .grow-label { fill: var(--pink); }
+.grow-label { font-size: 15px; }
+.grow line { stroke-dasharray: 9 7; }
+.numrow .help-btn { margin-left: 0; }
+.nowrap { white-space: nowrap; }
+
+</style>
+</head>
+<body>
+<!-- Shared art: rider, run signs, gradients and filters -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- userSpaceOnUse so perfectly flat or vertical lines (zero-width bounding box) still render -->
+    <filter id="glow" filterUnits="userSpaceOnUse" x="-2000" y="-2000" width="6000" height="6000">
+      <feGaussianBlur stdDeviation="3.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <pattern id="p-grid20" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M20 0H0V20" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+    </pattern>
+    <linearGradient id="g-sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B1590"/>
+      <stop offset="1" stop-color="#0E0828"/>
+    </linearGradient>
+    <linearGradient id="g-goggle" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFE14D"/>
+      <stop offset="0.5" stop-color="#FF8A1F"/>
+      <stop offset="1" stop-color="#FF3DCB"/>
+    </linearGradient>
+    <linearGradient id="g-board" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FF3DCB"/>
+      <stop offset="1" stop-color="#FF8A1F"/>
+    </linearGradient>
+
+    <!-- Snowboarder, facing right. 100×100 box, board base centred at (50, 91). -->
+    <g id="rider">
+      <path d="M45 34 L33 43 L23 47" fill="none" stroke="#07041A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M45 34 L33 43 L23 47" fill="none" stroke="#12A8C8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="22" cy="47" r="4.6" fill="#FF3DCB" stroke="#07041A" stroke-width="2.2"/>
+      <path d="M4 81 Q6 86.5 13 86.5 H87 Q94 86.5 96 81 Q98.5 91 88 91 H12 Q1.5 91 4 81 Z" fill="url(#g-board)" stroke="#07041A" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M20 88.8 H80" stroke="#FFE14D" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M44 55 L31 66 L33 77" fill="none" stroke="#07041A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M44 55 L31 66 L33 77" fill="none" stroke="#6A3DF0" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M55 55 L67 64 L66 77" fill="none" stroke="#07041A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M55 55 L67 64 L66 77" fill="none" stroke="#8B5CFF" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="25" y="74" width="16" height="12" rx="3.5" fill="#2A2150" stroke="#07041A" stroke-width="2.2"/>
+      <rect x="58" y="74" width="16" height="12" rx="3.5" fill="#2A2150" stroke="#07041A" stroke-width="2.2"/>
+      <path d="M26.5 79.5 H39.5 M59.5 79.5 H72.5" stroke="#A6FF2E" stroke-width="2" stroke-linecap="round"/>
+      <path d="M38.5 58 L58 58 Q61.5 46 61 36 Q60 27.5 50.5 26.5 Q41 27.5 39 35.5 Q36.5 46 38.5 58 Z" fill="#19E3FF" stroke="#07041A" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M39.6 45 L60.2 45" stroke="#FF3DCB" stroke-width="3.2"/>
+      <path d="M55.5 29 Q58 42 56 57" fill="none" stroke="#0B8FAD" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M38.8 52 L58.8 52" stroke="#0B8FAD" stroke-width="1.4"/>
+      <path d="M43 27.5 Q50.5 32 59 28.5 L59 31.5 Q50.5 35 43 31 Z" fill="#0B8FAD" stroke="#07041A" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M55 34 L67 41 L78 38" fill="none" stroke="#07041A" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M55 34 L67 41 L78 38" fill="none" stroke="#19E3FF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="79" cy="38" r="4.6" fill="#FF3DCB" stroke="#07041A" stroke-width="2.2"/>
+      <circle cx="53" cy="19.5" r="7.6" fill="#F2BE94" stroke="#07041A" stroke-width="2.2"/>
+      <path d="M57.5 25.2 q2 0.9 3.8 -0.8" fill="none" stroke="#07041A" stroke-width="1.3" stroke-linecap="round"/>
+      <path d="M40.8 20.5 A11.6 11.6 0 0 1 64 18.6 L64 20.4 Q52 22.6 40.8 20.5 Z" fill="#FFE14D" stroke="#07041A" stroke-width="2.4" stroke-linejoin="round"/>
+      <path d="M45 12.5 Q51 8.8 57.5 10.2" fill="none" stroke="#FFF6B8" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M41.5 20.6 L52 20.4" stroke="#07041A" stroke-width="3.2"/>
+      <rect x="51.5" y="16.6" width="15" height="7.4" rx="3.7" fill="url(#g-goggle)" stroke="#07041A" stroke-width="2.1"/>
+      <path d="M55 18.6 L58.5 18.6" stroke="#FFFFFF" stroke-width="1.4" stroke-linecap="round" opacity="0.85"/>
+    </g>
+
+    <symbol id="s-bunny" viewBox="0 0 28 28"><circle cx="14" cy="14" r="10" fill="none" stroke="#3DF58B" stroke-width="3.5"/></symbol>
+    <symbol id="s-green" viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="#3DF58B" stroke="#07041A" stroke-width="2"/></symbol>
+    <symbol id="s-blue" viewBox="0 0 28 28"><rect x="3.5" y="3.5" width="21" height="21" rx="2" fill="#4D8DFF" stroke="#07041A" stroke-width="2"/></symbol>
+    <symbol id="s-red" viewBox="0 0 28 28"><rect x="3.5" y="3.5" width="21" height="21" rx="2" fill="#FF4D5E" stroke="#07041A" stroke-width="2"/></symbol>
+    <symbol id="s-black" viewBox="0 0 28 28"><rect x="7" y="7" width="14" height="14" transform="rotate(45 14 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="2"/></symbol>
+    <symbol id="s-double" viewBox="0 0 28 28"><rect x="2.8" y="9.3" width="9.4" height="9.4" transform="rotate(45 7.5 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.8"/><rect x="15.8" y="9.3" width="9.4" height="9.4" transform="rotate(45 20.5 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.8"/></symbol>
+  </defs>
+</svg>
+
+<div id="app"></div>
+<noscript><p style="padding:2rem">Slope Rider needs JavaScript turned on.</p></noscript>
+
+<script>
+/* Slope Rider: fractions, answer parsing and question generators. No DOM, so it runs in Node tests too. */
+(function (root) {
+  'use strict';
+
+  const BOX = { xmin: -6, xmax: 6, ymin: -10, ymax: 10 };
+  const MINUS = '−';
+
+  // ---------- random ----------
+  let rand = Math.random;
+  function setSeed(seed) {
+    let a = seed >>> 0;
+    rand = function () {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const randInt = (a, b) => a + Math.floor(rand() * (b - a + 1));
+  const pick = arr => arr[Math.floor(rand() * arr.length)];
+  const chance = p => rand() < p;
+  function range(a, b, step = 1) { const out = []; for (let i = a; i <= b; i += step) out.push(i); return out; }
+  const nonZero = n => range(-n, n).filter(v => v !== 0);
+  function weighted(pairs) {
+    const total = pairs.reduce((s, p) => s + p[1], 0);
+    let r = rand() * total;
+    for (const [v, w] of pairs) { r -= w; if (r < 0) return v; }
+    return pairs[pairs.length - 1][0];
+  }
+
+  // ---------- fractions ----------
+  function gcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { [a, b] = [b, a % b]; } return a || 1; }
+  function Q(n, d = 1) {
+    if (d === 0) throw new Error('zero denominator');
+    if (d < 0) { n = -n; d = -d; }
+    const g = gcd(n, d);
+    return { n: n / g + 0, d: d / g };
+  }
+  const qeq = (a, b) => a.n === b.n && a.d === b.d;
+  const qval = a => a.n / a.d;
+  const qadd = (a, b) => Q(a.n * b.d + b.n * a.d, a.d * b.d);
+  const qsub = (a, b) => Q(a.n * b.d - b.n * a.d, a.d * b.d);
+  const qmul = (a, b) => Q(a.n * b.n, a.d * b.d);
+  const qdiv = (a, b) => Q(a.n * b.d, a.d * b.n);
+  const qneg = a => Q(-a.n, a.d);
+  const qsign = a => Math.sign(a.n);
+  function terminates(q) { let d = q.d; while (d % 2 === 0) d /= 2; while (d % 5 === 0) d /= 5; return d === 1; }
+
+  const VULGAR = { '1/2': '½', '1/3': '⅓', '2/3': '⅔', '1/4': '¼', '3/4': '¾', '1/5': '⅕', '2/5': '⅖', '3/5': '⅗', '4/5': '⅘', '1/6': '⅙', '5/6': '⅚', '1/8': '⅛', '3/8': '⅜', '5/8': '⅝', '7/8': '⅞' };
+  const VULGAR_REV = Object.fromEntries(Object.entries(VULGAR).map(([k, v]) => [v, k]));
+
+  // Integer with a proper minus sign.
+  const fmt = n => (n < 0 ? MINUS + (-n) : String(n + 0));
+  // Integer in brackets when negative, for working like 3 × (−2).
+  const paren = n => (n < 0 ? '(' + fmt(n) + ')' : fmt(n));
+  // " + 3" or " − 3"
+  const signed = n => (n < 0 ? ' ' + MINUS + ' ' + (-n) : ' + ' + n);
+
+  const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
+  const digits = (n, set) => String(n).split('').map(ch => set[+ch]).join('');
+  function qpretty(q) {
+    const s = q.n < 0 ? MINUS : '';
+    const key = Math.abs(q.n) + '/' + q.d;
+    if (q.d === 1) return s + Math.abs(q.n);
+    return s + (VULGAR[key] || digits(Math.abs(q.n), SUP) + '⁄' + digits(q.d, SUB));
+  }
+  // Coefficient of x: "", "−", "3", "½", "³⁄₂"
+  function coef(m) {
+    if (m.n === 1 && m.d === 1) return '';
+    if (m.n === -1 && m.d === 1) return MINUS;
+    return qpretty(m);
+  }
+  function eqStr(m, c) {
+    if (m.n === 0) return 'y = ' + qpretty(c);
+    let s = 'y = ' + coef(m) + 'x';
+    if (c.n > 0) s += ' + ' + qpretty(c);
+    else if (c.n < 0) s += ' ' + MINUS + ' ' + qpretty(qneg(c));
+    return s;
+  }
+
+  // ---------- answer parsing ----------
+  function normalise(s) {
+    return String(s == null ? '' : s)
+      .replace(/[−–—‐‑]/g, '-')
+      .replace(/[⁄∕÷]/g, '/')
+      .replace(/\s+/g, '')
+      .replace(/[()]/g, '');
+  }
+  function parseNum(raw) {
+    // Mixed numbers like "1 1/2" or "1½": ask for an improper fraction instead of misreading them.
+    if (/^\s*[+\-\u2212]?\d+(\s+\d+\s*\/\s*\d+|\s*[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])\s*$/.test(String(raw == null ? '' : raw))) return { invalid: true, mixed: true };
+    let s = normalise(raw);
+    if (s === '') return { empty: true };
+    const vm = s.match(/^([+-]?)([½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])$/);
+    if (vm) s = vm[1] + VULGAR_REV[vm[2]];
+    if (s.replace(/\D/g, '').length > 9) return { invalid: true };
+    let m;
+    if ((m = s.match(/^([+-]?)(\d+)\.?$/))) return { ok: true, q: Q((m[1] === '-' ? -1 : 1) * Number(m[2])) };
+    if ((m = s.match(/^([+-]?)(\d+)\/([+-]?)(\d+)$/))) {
+      if (Number(m[4]) === 0) return { invalid: true };
+      const sign = (m[1] === '-' ? -1 : 1) * (m[3] === '-' ? -1 : 1);
+      return { ok: true, q: Q(sign * Number(m[2]), Number(m[4])) };
+    }
+    if ((m = s.match(/^([+-]?)(\d*)\.(\d+)$/))) {
+      const d = Math.pow(10, m[3].length);
+      const n = Number(m[2] || '0') * d + Number(m[3]);
+      return { ok: true, decimal: true, q: Q((m[1] === '-' ? -1 : 1) * n, d) };
+    }
+    return { invalid: true };
+  }
+  // status: empty | invalid | rounded | correct | wrong
+  function judgeNum(raw, expected) {
+    const p = parseNum(raw);
+    if (p.empty) return { status: 'empty' };
+    if (p.invalid) return { status: 'invalid', mixed: !!p.mixed };
+    if (qeq(p.q, expected)) return { status: 'correct', q: p.q };
+    if (p.decimal && !terminates(expected) && Math.abs(qval(p.q) - qval(expected)) < 0.051) return { status: 'rounded', q: p.q };
+    return { status: 'wrong', q: p.q };
+  }
+  // The two boxes of y = [m]x + [c]. A blank m means 1 ("y = x + 3"); a blank c means 0.
+  function parseEq(mRaw, cRaw) {
+    const mTrim = String(mRaw == null ? '' : mRaw).replace(/x\s*$/i, '');
+    if (parseNum(mTrim).mixed) return { status: 'invalid', field: 'm', mixed: true };
+    if (parseNum(cRaw).mixed) return { status: 'invalid', field: 'c', mixed: true };
+    const ms = normalise(mTrim), cs = normalise(cRaw);
+    if (ms === '' && cs === '') return { status: 'empty' };
+    let m, mDecimal = false;
+    if (ms === '' || ms === '+') m = Q(1);
+    else if (ms === '-') m = Q(-1);
+    else {
+      const p = parseNum(ms);
+      if (!p.ok) return { status: 'invalid', field: 'm', mixed: !!p.mixed };
+      m = p.q; mDecimal = !!p.decimal;
+    }
+    let c = Q(0);
+    if (cs !== '') {
+      const p = parseNum(cs);
+      if (!p.ok) return { status: 'invalid', field: 'c', mixed: !!p.mixed };
+      c = p.q;
+    }
+    return { status: 'ok', m, c, mDecimal };
+  }
+  function roundedGradient(ans, expected) {
+    return ans.mDecimal && !qeq(ans.m, expected) && !terminates(expected) && Math.abs(qval(ans.m) - qval(expected)) < 0.051;
+  }
+
+  // ---------- geometry ----------
+  const inBox = p => p.x >= BOX.xmin && p.x <= BOX.xmax && p.y >= BOX.ymin && p.y <= BOX.ymax;
+  // The part of y = mx + c inside the grid, as [left, right], or null.
+  function clipLine(m, c) {
+    let x1 = BOX.xmin, x2 = BOX.xmax;
+    if (m !== 0) {
+      let a = (BOX.ymin - c) / m, b = (BOX.ymax - c) / m;
+      if (a > b) [a, b] = [b, a];
+      x1 = Math.max(x1, a); x2 = Math.min(x2, b);
+    } else if (c < BOX.ymin || c > BOX.ymax) return null;
+    if (x1 > x2 + 1e-9) return null;
+    return [{ x: x1, y: m * x1 + c }, { x: x2, y: m * x2 + c }];
+  }
+  // Path along a line from its left edge to x = xEnd (clamped to what is visible).
+  function pathTo(m, c, xEnd) {
+    const clip = clipLine(m, c);
+    if (!clip) return null;
+    const b = Math.max(clip[0].x, Math.min(clip[1].x, xEnd));
+    return [clip[0], { x: b, y: m * b + c }];
+  }
+  function diffsOf(ys) { return ys.slice(1).map((y, i) => y - ys[i]); }
+  const keyOf = p => p.x + ',' + p.y;
+
+  // What is wrong with a student's line compared with the true one.
+  function diagnose(m, c, tm, tc) {
+    const issues = [];
+    if (!qeq(c, tc)) issues.push('height');
+    if (m.n === 0 && tm.n !== 0) issues.push('flat');
+    else if (qsign(m) !== qsign(tm)) issues.push('direction');
+    else if (!qeq(m, tm)) issues.push(Math.abs(qval(m)) > Math.abs(qval(tm)) ? 'steep' : 'shallow');
+    return issues;
+  }
+
+  // ---------- generators ----------
+  // Gates clear of the grid edge, so their labels and the rise/run lines fit.
+  const awayFromEdge = (...ps) => ps.every(p => Math.abs(p.x) <= 4 && Math.abs(p.y) <= 8);
+  const FRACS = [[1, 2], [-1, 2], [3, 2], [-3, 2], [1, 3], [-1, 3], [2, 3], [-2, 3], [1, 4], [-1, 4], [3, 4], [-3, 4]];
+
+  function consecutiveStarts(n, ok) {
+    return range(BOX.xmin, BOX.xmax - n + 1).filter(s => range(s, s + n - 1).every(ok));
+  }
+  function preferCentral(starts, n) {
+    const central = starts.filter(s => Math.abs(s + (n - 1) / 2) <= 3);
+    return central.length ? central : starts;
+  }
+
+  // Run 1: plot a table of values.
+  function genPlot(opts = {}) {
+    const ms = opts.hard ? nonZero(3) : range(-3, 3);
+    for (;;) {
+      const m = pick(ms), c = randInt(-4, 4), n = opts.n || pick([4, 5]);
+      const starts = consecutiveStarts(n, x => Math.abs(m * x + c) <= 10);
+      if (!starts.length) continue;
+      const s = pick(preferCentral(starts, n));
+      const points = range(s, s + n - 1).map(x => ({ x, y: m * x + c }));
+      return { m: Q(m), c: Q(c), points };
+    }
+  }
+
+  // Run 2: a table from y = mx + c.
+  function genTable(opts = {}) {
+    for (;;) {
+      const m = pick(nonZero(opts.mMax || 4)), c = randInt(-5, 5), n = 5;
+      let starts = consecutiveStarts(n, x => Math.abs(m * x + c) <= 10);
+      if (opts.withZero) starts = starts.filter(s => s <= 0 && s + n - 1 >= 0);
+      if (!starts.length) continue;
+      const s = pick(preferCentral(starts, n));
+      const xs = range(s, s + n - 1);
+      return { m: Q(m), c: Q(c), xs, ys: xs.map(x => m * x + c) };
+    }
+  }
+
+  // Run 2: is this table a straight run?
+  function genStraight(forceLinear) {
+    const linear = forceLinear != null ? forceLinear : chance(0.5);
+    if (linear) { const t = genTable(); return { ...t, linear: true, diffs: diffsOf(t.ys) }; }
+    const kind = pick(['square', 'negsquare', 'power', 'bump']);
+    let xs, ys, k = 0;
+    if (kind === 'square') { k = randInt(-4, 2); xs = range(-2, 2); ys = xs.map(x => x * x + k); }
+    else if (kind === 'negsquare') { k = randInt(-2, 4); xs = range(-2, 2); ys = xs.map(x => -x * x + k); }
+    else if (kind === 'power') { k = randInt(6, 9); xs = range(0, 4); ys = xs.map(x => Math.pow(2, x) - k); }
+    else {
+      for (;;) {
+        const t = genTable({ mMax: 3 }), i = randInt(1, 3), off = pick([-2, -1, 1, 2]);
+        const ys2 = t.ys.slice(); ys2[i] += off;
+        if (ys2.every(y => Math.abs(y) <= 10)) { xs = t.xs; ys = ys2; break; }
+      }
+    }
+    return { xs, ys, linear: false, diffs: diffsOf(ys), kind, k };
+  }
+
+  // Run 3: a line with whole-number intercepts on both axes.
+  function genInterceptLine() {
+    for (;;) {
+      const m = pick([-3, -2, -1, 1, 2, 3]), a = pick(nonZero(5)), c = -m * a;
+      if (Math.abs(c) > 9) continue;
+      return { m: Q(m), c: Q(c), xInt: a };
+    }
+  }
+  function genBlue(type) {
+    const L = genInterceptLine(), m = L.m.n, c = L.c.n;
+    if (type === 'tapY') return { type, ...L, target: { x: 0, y: c } };
+    if (type === 'tapX') return { type, ...L, target: { x: L.xInt, y: 0 } };
+    const xs = nonZero(6).filter(x => Math.abs(m * x + c) <= 10 && x !== L.xInt);
+    const x = pick(xs);
+    if (type === 'xToY') return { type, ...L, given: x, answer: m * x + c, target: { x, y: m * x + c } };
+    return { type: 'yToX', ...L, given: m * x + c, answer: x, target: { x, y: m * x + c } };
+  }
+
+  // Run 4: two gates on a whole-number gradient.
+  // opts.wide: gates at least 2 across and 3 up or down apart, so the rise and run are easy to see.
+  function genReadGradient(opts = {}) {
+    for (;;) {
+      const m = pick(nonZero(5)), r = opts.wide ? pick([2, 3]) : pick([1, 2, 2, 3]);
+      if (Math.abs(m * r) > 10) continue;
+      if (opts.wide && Math.abs(m * r) < 3) continue;
+      const c = randInt(-6, 6), ax = randInt(-5, 6 - r);
+      const A = { x: ax, y: m * ax + c }, B = { x: ax + r, y: m * (ax + r) + c };
+      if (!inBox(A) || !inBox(B)) continue;
+      if (opts.wide && !awayFromEdge(A, B)) continue;
+      return { m: Q(m), c: Q(c), A, B };
+    }
+  }
+  function genBuildRun() {
+    for (;;) {
+      const m = pick(nonZero(4)), A = { x: randInt(-5, -1), y: randInt(-4, 4) };
+      if (Math.abs(A.y + m) > 10) continue;
+      return { m: Q(m), A };
+    }
+  }
+
+  // Run 5: fractional gradient between two gates.
+  // opts.wide: a rise of at least 2, so the rise line is easy to see.
+  function genFracGradient(opts = {}) {
+    for (;;) {
+      const [p, q] = pick(opts.wide ? FRACS.filter(f => Math.abs(f[0]) >= 2) : FRACS), c = randInt(-5, 5);
+      const xs = range(BOX.xmin, BOX.xmax - q).filter(x => x % q === 0);
+      const ax = pick(xs);
+      const A = { x: ax, y: p * ax / q + c }, B = { x: ax + q, y: p * ax / q + c + p };
+      if (!inBox(A) || !inBox(B)) continue;
+      if (opts.wide && !awayFromEdge(A, B)) continue;
+      return { m: Q(p, q), c: Q(c), A, B };
+    }
+  }
+  // Run 5: a line to write as y = mx + c, with gates on whole-number points either side of the Base Station.
+  function genEquation(kind) {
+    for (;;) {
+      let p, q;
+      if (kind === 'int') { p = pick(nonZero(5)); q = 1; }
+      else if (chance(0.25)) { p = pick([-1, -2, -3, -4]); q = 1; }
+      else [p, q] = pick(FRACS);
+      const c = randInt(-6, 6);
+      const step = q > 1 ? q : (Math.abs(p) >= 3 ? 1 : 2);
+      const gates = [-1, 0, 1].map(k => ({ x: k * step, y: p * k * step / q + c })).filter(inBox);
+      if (gates.length < 2) continue;
+      return { m: Q(p, q), c: Q(c), gates, step, rise: p * step / q };
+    }
+  }
+
+  // Double Black: equation from two gates.
+  function genTwoPoint() {
+    for (;;) {
+      let p, q;
+      if (chance(0.6)) { p = pick(nonZero(4)); q = 1; } else [p, q] = pick(FRACS.filter(f => f[1] <= 3));
+      const c = randInt(-5, 5);
+      const pts = range(BOX.xmin, BOX.xmax).filter(x => x % q === 0).map(x => ({ x, y: p * x / q + c })).filter(inBox);
+      const cand = chance(0.7) ? pts.filter(pt => pt.x !== 0) : pts;
+      if (cand.length < 2) continue;
+      let A = pick(cand), B = pick(cand);
+      if (A.x === B.x) continue;
+      if (A.x > B.x) [A, B] = [B, A];
+      if (B.x - A.x > 6) continue;
+      return { m: Q(p, q), c: Q(c), A, B };
+    }
+  }
+  // Double Black: a table where x goes up in steps of 2.
+  function genTrap() {
+    for (;;) {
+      const m = pick(nonZero(3)), c = randInt(-4, 4), s = pick([-6, -4, -2]);
+      const xs = range(0, 4).map(i => s + 2 * i), ys = xs.map(x => m * x + c);
+      if (!ys.every(y => Math.abs(y) <= 10)) continue;
+      return { m: Q(m), c: Q(c), xs, ys, d: 2 * m };
+    }
+  }
+
+  function checkPlot(placed, points) {
+    const want = new Set(points.map(keyOf)), have = new Set(placed.map(keyOf));
+    const wrong = placed.filter(p => !want.has(keyOf(p)));
+    const missing = points.filter(p => !have.has(keyOf(p)));
+    return { correct: !wrong.length && !missing.length, wrong, missing };
+  }
+
+  const SRL = {
+    BOX, MINUS, FRACS,
+    setSeed, randInt, pick, chance, range, nonZero, weighted,
+    gcd, Q, qeq, qval, qadd, qsub, qmul, qdiv, qneg, qsign, terminates,
+    fmt, paren, signed, qpretty, coef, eqStr,
+    normalise, parseNum, judgeNum, parseEq, roundedGradient,
+    inBox, clipLine, pathTo, diffsOf, keyOf, diagnose,
+    genPlot, genTable, genStraight, genInterceptLine, genBlue, genReadGradient, genBuildRun,
+    genFracGradient, genEquation, genTwoPoint, genTrap, checkPlot
+  };
+  root.SRL = SRL;
+  if (typeof module !== 'undefined' && module.exports) module.exports = SRL;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* Slope Rider: the mountain (an SVG coordinate grid), the rider and the effects. */
+(function () {
+  'use strict';
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const L = window.SRL;
+  const REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const SHARDS = ['#19E3FF', '#8B5CFF', '#FFE14D', '#FF3DCB', '#FF8A1F', '#6A3DF0', '#A6FF2E', '#F2BE94'];
+  let uid = 0;
+
+  function svgEl(tag, attrs, parent) {
+    const e = document.createElementNS(SVGNS, tag);
+    if (attrs) for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  // Next animation frame. requestAnimationFrame can stall (hidden or embedded views), so a timer backs it up
+  // and the game never waits on a ride that is not being drawn.
+  const tick = cb => {
+    let done = false;
+    const run = () => { if (!done) { done = true; cb(performance.now()); } };
+    requestAnimationFrame(run);
+    setTimeout(run, 50);
+  };
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  class Graph {
+    constructor(svg) {
+      this.svg = svg;
+      this.U = 30;
+      this.xmin = -6.8;
+      this.ymax = 11.8;
+      this.W = 13.6 * this.U;
+      this.H = 22.6 * this.U;
+      this.id = ++uid;
+      svg.innerHTML = '';
+      svg.setAttribute('viewBox', `0 0 ${this.W} ${this.H}`);
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      this.color = '#3DF58B';
+      this.layers = {};
+      this.buildBackground();
+      for (const name of ['guides', 'lines', 'scratch', 'marks', 'rider', 'handles', 'fx', 'overlay', 'hover']) {
+        this.layers[name] = svgEl('g', { class: 'layer-' + name }, svg);
+      }
+      this.layers.lines.setAttribute('clip-path', `url(#clip-plot-${this.id})`);
+      this.layers.scratch.setAttribute('clip-path', `url(#clip-plot-${this.id})`);
+      this.layers.guides.setAttribute('clip-path', `url(#clip-plot-${this.id})`);
+      this.buildRider();
+      this.hoverRing = svgEl('circle', { r: 12, class: 'hover-ring', visibility: 'hidden' }, this.layers.hover);
+      this.hoverText = svgEl('text', { class: 'glabel hover-coords', visibility: 'hidden' }, this.layers.hover);
+      this.showCoords = false;
+      this.handles = [];
+      this.tapFn = null;
+      this.drag = null;
+      this.dragEndedAt = 0;
+      this.bindPointer();
+    }
+
+    X(x) { return (x - this.xmin) * this.U; }
+    Y(y) { return (this.ymax - y) * this.U; }
+    P(p) { return [this.X(p.x), this.Y(p.y)]; }
+
+    buildBackground() {
+      const s = this.svg, W = this.W, H = this.H;
+      const defs = svgEl('defs', null, s);
+      const clip = svgEl('clipPath', { id: `clip-plot-${this.id}` }, defs);
+      svgEl('rect', { x: this.X(-6.6), y: this.Y(10.6), width: 13.2 * this.U, height: 21.2 * this.U }, clip);
+      svgEl('rect', { width: W, height: H, fill: 'url(#g-sky)' }, s);
+      svgEl('polygon', { points: `0,${H * 0.5} ${W * 0.2},${H * 0.3} ${W * 0.38},${H * 0.46} ${W * 0.6},${H * 0.24} ${W * 0.84},${H * 0.44} ${W},${H * 0.32} ${W},${H} 0,${H}`, fill: '#2C1A86', opacity: 0.45 }, s);
+      svgEl('polygon', { points: `0,${H * 0.76} ${W * 0.16},${H * 0.6} ${W * 0.4},${H * 0.74} ${W * 0.64},${H * 0.57} ${W * 0.88},${H * 0.72} ${W},${H * 0.66} ${W},${H} 0,${H}`, fill: '#1C0F5E', opacity: 0.7 }, s);
+      let d = '';
+      for (let x = -6; x <= 6; x++) d += `M${this.X(x)} ${this.Y(10)}V${this.Y(-10)}`;
+      for (let y = -10; y <= 10; y++) d += `M${this.X(-6)} ${this.Y(y)}H${this.X(6)}`;
+      svgEl('path', { d, class: 'gridlines' }, s);
+      this.xAxis = svgEl('path', { d: `M${this.X(-6.55)} ${this.Y(0)}H${this.X(6.55)}`, class: 'axis' }, s);
+      this.yAxis = svgEl('path', { d: `M${this.X(0)} ${this.Y(10.55)}V${this.Y(-10.55)}`, class: 'axis' }, s);
+      const t = svgEl('g', { class: 'ticks' }, s);
+      for (let x = -6; x <= 6; x++) if (x) svgEl('text', { x: this.X(x), y: this.Y(0) + 15, 'text-anchor': 'middle' }, t).textContent = L.fmt(x);
+      for (let y = -10; y <= 10; y++) if (y) svgEl('text', { x: this.X(0) - 6, y: this.Y(y) + 4, 'text-anchor': 'end' }, t).textContent = L.fmt(y);
+      svgEl('text', { x: this.X(0) - 6, y: this.Y(0) + 15, 'text-anchor': 'end' }, t).textContent = '0';
+      svgEl('text', { x: this.X(6.55), y: this.Y(0) - 7, 'text-anchor': 'end', class: 'axis-name' }, t).textContent = 'x';
+      svgEl('text', { x: this.X(0) + 8, y: this.Y(10.35), class: 'axis-name' }, t).textContent = 'y';
+    }
+
+    buildRider() {
+      const g = this.layers.rider;
+      this.trail = svgEl('path', { class: 'trail' }, g);
+      this.riderG = svgEl('g', { class: 'rider', visibility: 'hidden' }, g);
+      const bob = svgEl('g', { class: 'bob' }, this.riderG);
+      svgEl('use', { href: '#rider', transform: 'scale(0.5) translate(-50 -91)' }, bob);
+    }
+
+    // ---------- clearing ----------
+    clear() {
+      this.gen = (this.gen || 0) + 1;
+      for (const k of ['guides', 'lines', 'scratch', 'marks', 'handles', 'fx', 'overlay']) this.layers[k].innerHTML = '';
+      this.handles = [];
+      this.drag = null;
+      this.setTap(null);
+      this.hideRider();
+      this.trail.setAttribute('d', '');
+      this.axisHot(null);
+      this.svg.classList.remove('pulse');
+    }
+    clearLayer(name) { this.layers[name].innerHTML = ''; }
+
+    // ---------- drawing ----------
+    line(m, c, opts = {}) {
+      const x1 = -6.7, x2 = 6.7;
+      return svgEl('line', {
+        x1: this.X(x1), y1: this.Y(m * x1 + c), x2: this.X(x2), y2: this.Y(m * x2 + c),
+        class: 'run-line ' + (opts.cls || ''), stroke: opts.color || this.color
+      }, this.layers[opts.layer || 'lines']);
+    }
+    segment(a, b, opts = {}) {
+      return svgEl('line', { x1: this.X(a.x), y1: this.Y(a.y), x2: this.X(b.x), y2: this.Y(b.y), class: opts.cls || 'run-line', stroke: opts.color || this.color }, this.layers[opts.layer || 'lines']);
+    }
+    polyline(points, opts = {}) {
+      return svgEl('polyline', { points: points.map(p => this.P(p).join(',')).join(' '), class: opts.cls || 'run-line', stroke: opts.color || this.color, fill: 'none' }, this.layers[opts.layer || 'lines']);
+    }
+    dot(x, y, opts = {}) {
+      return svgEl('circle', { cx: this.X(x), cy: this.Y(clamp(y, -10.6, 10.6)), r: opts.r || 6, class: 'dot ' + (opts.cls || '') }, this.layers[opts.layer || 'marks']);
+    }
+    flag(x, y, state = 'ok', layer = 'marks') {
+      const g = svgEl('g', { class: 'flag ' + state, transform: `translate(${this.X(x)} ${this.Y(clamp(y, -10.6, 10.6))})` }, this.layers[layer]);
+      const inner = svgEl('g', { class: 'flag-inner' }, g);
+      svgEl('path', { d: 'M0 0V-26', class: 'pole' }, inner);
+      svgEl('path', { d: 'M0 -26L18 -19.5L0 -13Z', class: 'cloth' }, inner);
+      svgEl('circle', { r: 5, class: 'foot' }, inner);
+      return g;
+    }
+    dropFlag(el) {
+      el.classList.add('bad', 'fall');
+      setTimeout(() => el.remove(), REDUCED ? 0 : 900);
+    }
+    label(x, y, text, opts = {}) {
+      const e = svgEl('text', {
+        x: this.X(x) + (opts.dx || 0), y: this.Y(y) + (opts.dy || 0),
+        'text-anchor': opts.anchor || 'start', class: 'glabel ' + (opts.cls || '')
+      }, this.layers[opts.layer || 'marks']);
+      e.textContent = text;
+      return e;
+    }
+    // A glowing marker for the Base Station or Snow Line, with a label placed clear of the line.
+    station(p, name, opts = {}) {
+      const g = svgEl('g', { class: 'station ' + (opts.cls || '') }, this.layers[opts.layer || 'marks']);
+      svgEl('circle', { cx: this.X(p.x), cy: this.Y(p.y), r: 9 }, g);
+      const right = p.x <= 2;
+      const t = svgEl('text', {
+        x: this.X(p.x) + (right ? 14 : -14), y: this.Y(p.y) + 50,
+        'text-anchor': right ? 'start' : 'end', class: 'glabel big'
+      }, g);
+      t.textContent = `${name} (${L.fmt(p.x)}, ${L.fmt(p.y)})`;
+      return g;
+    }
+    guide(points, layer = 'guides') {
+      return svgEl('polyline', { points: points.map(p => this.P(p).join(',')).join(' '), class: 'guide', fill: 'none' }, this.layers[layer]);
+    }
+    // Rise/run triangle from A to B (graph coords). Labels show run and rise.
+    triangle(A, B, opts = {}) {
+      const g = svgEl('g', { class: 'tri ' + (opts.cls || '') }, this.layers[opts.layer || 'guides']);
+      const C = { x: B.x, y: A.y };
+      svgEl('line', { x1: this.X(A.x), y1: this.Y(A.y), x2: this.X(C.x), y2: this.Y(C.y), class: 'tri-run' }, g);
+      svgEl('line', { x1: this.X(C.x), y1: this.Y(C.y), x2: this.X(B.x), y2: this.Y(B.y), class: 'tri-rise' }, g);
+      if (opts.labels !== false) {
+        const run = B.x - A.x, rise = B.y - A.y;
+        const t1 = svgEl('text', { x: (this.X(A.x) + this.X(C.x)) / 2, y: this.Y(A.y) + (rise >= 0 ? 18 : -9), 'text-anchor': 'middle', class: 'glabel tri-run-label' }, g);
+        t1.textContent = 'run ' + L.fmt(run);
+        if (rise !== 0) {
+          const t2 = svgEl('text', { x: this.X(C.x) + 7, y: (this.Y(A.y) + this.Y(B.y)) / 2 + 5, class: 'glabel tri-rise-label' }, g);
+          t2.textContent = 'rise ' + L.fmt(rise);
+        }
+      }
+      return g;
+    }
+    // Draw a straight line from a to b one grid square at a time, with a counting label. Resolves when done.
+    grow(a, b, opts = {}) {
+      const g = svgEl('g', { class: 'grow ' + (opts.cls || '') }, this.layers.guides);
+      const seg = svgEl('line', { x1: this.X(a.x), y1: this.Y(a.y), x2: this.X(a.x), y2: this.Y(a.y) }, g);
+      const lab = svgEl('text', { class: 'glabel grow-label' }, g);
+      const n = Math.max(Math.abs(b.x - a.x), Math.abs(b.y - a.y));
+      const sx = Math.sign(b.x - a.x), sy = Math.sign(b.y - a.y);
+      const gen = this.gen;
+      return new Promise(resolve => {
+        let i = 0;
+        const step = () => {
+          if (gen !== this.gen || !g.isConnected) return resolve();
+          i++;
+          const p = { x: a.x + sx * i, y: a.y + sy * i };
+          seg.setAttribute('x2', this.X(p.x)); seg.setAttribute('y2', this.Y(p.y));
+          lab.textContent = opts.label ? opts.label(i) : String(i);
+          const mid = { x: (a.x + p.x) / 2, y: (a.y + p.y) / 2 };
+          lab.setAttribute('x', this.X(mid.x) + (sx ? 0 : -8));
+          const below = opts.below && this.Y(mid.y) + 20 < this.Y(-10.3);
+          lab.setAttribute('y', this.Y(mid.y) + (sx ? (below ? 20 : -9) : 5));
+          lab.setAttribute('text-anchor', sx ? 'middle' : 'end');
+          if (i < n) setTimeout(step, REDUCED ? 0 : 480); else resolve();
+        };
+        if (n === 0) resolve(); else setTimeout(step, REDUCED ? 0 : 250);
+      });
+    }
+    axisHot(which) {
+      this.xAxis.classList.toggle('hot', which === 'x');
+      this.yAxis.classList.toggle('hot', which === 'y');
+    }
+    pulse() {
+      this.svg.classList.remove('pulse');
+      void this.svg.getBoundingClientRect();
+      this.svg.classList.add('pulse');
+    }
+
+    // ---------- overlays ----------
+    banner(text, cls = '') {
+      const t = svgEl('text', { x: this.W / 2, y: this.Y(8.2), 'text-anchor': 'middle', class: 'banner ' + cls }, this.layers.overlay);
+      t.textContent = text;
+      setTimeout(() => t.remove(), 1700);
+      return t;
+    }
+    attempt(n) {
+      this.layers.overlay.querySelectorAll('.attempt-pop').forEach(e => e.remove());
+      const t = svgEl('text', { x: this.X(6.2), y: this.Y(-9.3), 'text-anchor': 'end', class: 'attempt-pop' }, this.layers.overlay);
+      t.textContent = 'Attempt ' + n;
+      setTimeout(() => t.remove(), 2200);
+    }
+    arrowFlash() {
+      const g = svgEl('g', { class: 'arrow-flash' }, this.layers.overlay);
+      const y = this.Y(9.1);
+      svgEl('path', { d: `M${this.X(-4.6)} ${y}H${this.X(4.4)}M${this.X(3.7)} ${y - 9}L${this.X(4.5)} ${y}L${this.X(3.7)} ${y + 9}`, class: 'arrow' }, g);
+      const t = svgEl('text', { x: this.W / 2, y: y - 14, 'text-anchor': 'middle', class: 'glabel big' }, g);
+      t.textContent = 'READ LEFT → RIGHT';
+      setTimeout(() => g.remove(), 2400);
+    }
+    fog(lines) {
+      const g = svgEl('g', { class: 'fog' }, this.layers.overlay);
+      svgEl('rect', { width: this.W, height: this.H }, g);
+      lines.forEach((ln, i) => {
+        const t = svgEl('text', { x: this.W / 2, y: this.H / 2 - 20 + i * 34, 'text-anchor': 'middle', class: i ? 'fog-sub' : 'fog-title' }, g);
+        t.textContent = ln;
+      });
+      return g;
+    }
+
+    // ---------- the rider ----------
+    showRiderAt(px, py, angle) {
+      this.riderG.setAttribute('transform', `translate(${px.toFixed(2)} ${py.toFixed(2)}) rotate(${angle.toFixed(2)})`);
+      this.riderG.setAttribute('visibility', 'visible');
+    }
+    hideRider() { this.riderG.setAttribute('visibility', 'hidden'); }
+    // Rider waiting on y = mx + c at x (numbers).
+    idleOnLine(m, c, x) {
+      const clip = L.clipLine(m, c);
+      if (!clip) return this.hideRider();
+      const xx = clamp(x, clip[0].x, clip[1].x);
+      this.showRiderAt(this.X(xx), this.Y(m * xx + c), Math.atan2(-m, 1) * 180 / Math.PI);
+    }
+    // Ride along a polyline of graph points, left to right. Resolves when the ride (and any wipeout) is over.
+    ride(points, opts = {}) {
+      const P = points.map(p => this.P(p));
+      const Ls = [0];
+      for (let i = 1; i < P.length; i++) Ls.push(Ls[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+      const total = Ls[Ls.length - 1];
+      const dur = REDUCED ? 0 : clamp(total / 0.36, total ? 600 : 0, 2300);
+      const gates = (opts.gates || []).map(gt => ({ ...gt, px: this.X(gt.x) }));
+      let lastAngle = opts.angle || 0;
+      const at = s => {
+        if (P.length === 1 || total === 0) return { x: P[0][0], y: P[0][1], a: lastAngle };
+        let i = 0;
+        while (i < P.length - 2 && Ls[i + 1] < s) i++;
+        const seg = Ls[i + 1] - Ls[i] || 1, k = clamp((s - Ls[i]) / seg, 0, 1);
+        const dx = P[i + 1][0] - P[i][0], dy = P[i + 1][1] - P[i][1];
+        if (dx || dy) lastAngle = Math.atan2(dy, dx) * 180 / Math.PI;
+        return { x: P[i][0] + dx * k, y: P[i][1] + dy * k, a: lastAngle };
+      };
+      if (P.length > 1) at(1e-6);
+      const hist = [];
+      this.trail.classList.remove('fade');
+      const gen = this.gen;
+      return new Promise(resolve => {
+        const t0 = performance.now();
+        const frame = now => {
+          if (!this.svg.isConnected || gen !== this.gen) return resolve();
+          const k = dur ? clamp((now - t0) / dur, 0, 1) : 1;
+          const pos = at(k * total);
+          this.showRiderAt(pos.x, pos.y, pos.a);
+          hist.push([pos.x, pos.y]);
+          if (hist.length > 16) hist.shift();
+          this.trail.setAttribute('d', hist.length > 1 ? 'M' + hist.map(h => h[0].toFixed(1) + ' ' + h[1].toFixed(1)).join('L') : '');
+          for (const gt of gates) {
+            if (!gt.hit && pos.x >= gt.px - 0.5) { gt.hit = true; this.hitGate(gt); }
+          }
+          if (k < 1) { tick(frame); return; }
+          this.trail.classList.add('fade');
+          if (opts.crash) { this.hideRider(); this.shatter(pos.x, pos.y).then(resolve); }
+          else {
+            if (opts.burst !== false) this.burst(pos.x, pos.y, 10);
+            if (opts.hideAtEnd) setTimeout(() => this.hideRider(), 300);
+            wait(REDUCED ? 0 : 250).then(resolve);
+          }
+        };
+        tick(frame);
+      });
+    }
+    hitGate(gt) {
+      if (gt.el) { gt.el.classList.remove('hit'); void gt.el.getBoundingClientRect(); gt.el.classList.add('hit'); }
+      this.burst(this.X(gt.x), this.Y(gt.y), 6);
+    }
+    burst(px, py, n) { this.particles(px, py, REDUCED ? 0 : n, 0.6, 140); }
+    shatter(px, py) {
+      const ring = svgEl('circle', { cx: px, cy: py, r: 6, class: 'boom' }, this.layers.fx);
+      setTimeout(() => ring.remove(), 700);
+      return this.particles(px, py, REDUCED ? 0 : 18, 1.0, 230);
+    }
+    particles(px, py, n, life, speed) {
+      const g = svgEl('g', null, this.layers.fx);
+      const parts = [];
+      for (let i = 0; i < n; i++) {
+        const size = 4 + Math.random() * (speed > 200 ? 8 : 4);
+        const ang = Math.random() * Math.PI * 2, sp = speed * (0.4 + Math.random() * 0.8);
+        const r = svgEl('rect', { x: -size / 2, y: -size / 2, width: size, height: size, fill: SHARDS[i % SHARDS.length], class: 'shard' }, g);
+        parts.push({ r, x: px, y: py, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - speed * 0.5, rot: Math.random() * 360, vr: (Math.random() - 0.5) * 720 });
+      }
+      return new Promise(resolve => {
+        if (!n) { g.remove(); resolve(); return; }
+        const t0 = performance.now();
+        let last = t0;
+        const frame = now => {
+          const dt = Math.min(0.05, (now - last) / 1000), age = (now - t0) / 1000;
+          last = now;
+          for (const p of parts) {
+            p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+            p.r.setAttribute('transform', `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${p.rot.toFixed(0)})`);
+            p.r.setAttribute('opacity', Math.max(0, 1 - age / life).toFixed(2));
+          }
+          if (age < life && this.svg.isConnected) tick(frame);
+          else { g.remove(); resolve(); }
+        };
+        tick(frame);
+      });
+    }
+
+    // ---------- input ----------
+    bindPointer() {
+      const s = this.svg;
+      s.addEventListener('pointermove', e => {
+        if (this.drag) { this.tryMove(this.drag, this.snap(this.toGraph(e))); return; }
+        if (!this.tapFn || e.pointerType === 'touch') return;
+        const p = this.snap(this.toGraph(e));
+        this.hoverRing.setAttribute('cx', this.X(p.x));
+        this.hoverRing.setAttribute('cy', this.Y(p.y));
+        this.hoverRing.setAttribute('visibility', 'visible');
+        if (this.showCoords) {
+          // "(x, y)" beside the ring, flipped to stay inside the grid near the right and top edges.
+          const right = p.x <= 3, below = p.y >= 9;
+          this.hoverText.textContent = `(${L.fmt(p.x)}, ${L.fmt(p.y)})`;
+          this.hoverText.setAttribute('x', this.X(p.x) + (right ? 16 : -16));
+          this.hoverText.setAttribute('y', this.Y(p.y) + (below ? 24 : -12));
+          this.hoverText.setAttribute('text-anchor', right ? 'start' : 'end');
+          this.hoverText.setAttribute('visibility', 'visible');
+        }
+      });
+      s.addEventListener('pointerleave', () => {
+        this.hoverRing.setAttribute('visibility', 'hidden');
+        this.hoverText.setAttribute('visibility', 'hidden');
+      });
+      const end = () => {
+        if (!this.drag) return;
+        this.drag.g.classList.remove('dragging');
+        this.drag = null;
+        this.dragEndedAt = performance.now();
+      };
+      s.addEventListener('pointerup', end);
+      s.addEventListener('pointercancel', end);
+      s.addEventListener('click', e => {
+        if (performance.now() - this.dragEndedAt < 250) return;
+        if (!this.tapFn) return;
+        const raw = this.toGraph(e);
+        this.tapFn(this.snap(raw), raw);
+      });
+    }
+    toGraph(e) {
+      const pt = this.svg.createSVGPoint();
+      pt.x = e.clientX; pt.y = e.clientY;
+      const q = pt.matrixTransform(this.svg.getScreenCTM().inverse());
+      return { x: q.x / this.U + this.xmin, y: this.ymax - q.y / this.U };
+    }
+    snap(p) { return { x: clamp(Math.round(p.x), -6, 6), y: clamp(Math.round(p.y), -10, 10) }; }
+    // opts.coords: show the "(x, y)" of the point under the pointer.
+    setTap(fn, opts = {}) {
+      this.showCoords = !!(fn && opts.coords);
+      this.hoverText.setAttribute('visibility', 'hidden');
+      this.tapFn = fn;
+      this.svg.classList.toggle('tappable', !!fn);
+      if (!fn) this.hoverRing.setAttribute('visibility', 'hidden');
+    }
+    // A draggable knob that snaps to whole-number points. opts: constrain(q, current) -> point|null, onMove(p), cls, label
+    handle(p, opts = {}) {
+      const g = svgEl('g', { class: 'handle ' + (opts.cls || ''), tabindex: 0, role: 'button', 'aria-label': opts.label || 'Drag handle. Use the arrow keys to move it.' }, this.layers.handles);
+      svgEl('circle', { r: 24, class: 'hit' }, g);
+      svgEl('circle', { r: 11, class: 'knob' }, g);
+      const h = { g, p: null, opts, locked: false };
+      h.set = q => { h.p = { x: q.x, y: q.y }; g.setAttribute('transform', `translate(${this.X(q.x)} ${this.Y(q.y)})`); };
+      h.set(p);
+      g.addEventListener('pointerdown', e => {
+        if (h.locked) return;
+        e.preventDefault();
+        e.stopPropagation();
+        this.drag = h;
+        try { this.svg.setPointerCapture(e.pointerId); } catch (err) { /* capture is optional */ }
+        g.classList.add('dragging');
+      });
+      g.addEventListener('keydown', e => {
+        const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[e.key];
+        if (!dir || h.locked) return;
+        e.preventDefault();
+        this.tryMove(h, { x: h.p.x + dir[0], y: h.p.y + dir[1] });
+      });
+      this.handles.push(h);
+      return h;
+    }
+    tryMove(h, q) {
+      if (h.locked) return;
+      q = this.snap(q);
+      if (h.opts.constrain) q = h.opts.constrain(q, h.p);
+      if (!q || (q.x === h.p.x && q.y === h.p.y)) return;
+      h.set(q);
+      if (h.opts.onMove) h.opts.onMove(h.p);
+    }
+    lockHandles(on) {
+      for (const h of this.handles) { h.locked = on; h.g.classList.toggle('locked', on); }
+    }
+  }
+
+  window.Graph = Graph;
+  window.SRFX = { REDUCED, wait, clamp, svgEl };
+})();
+
+</script>
+<script>
+/* Slope Rider: screens, runs, Explore scripts and the Challenge loop. */
+(function () {
+  'use strict';
+  const L = window.SRL;
+  const { Q, qeq, qval, qpretty, eqStr, fmt, paren } = L;
+  const { wait, REDUCED } = window.SRFX;
+  const CANCEL = { cancelled: true };
+  const STREAK_GOAL = 5;
+  const app = document.getElementById('app');
+
+  // ---------- saved progress ----------
+  const STORE_KEY = 'slopeRider.v1';
+  function loadSave() {
+    try {
+      const s = JSON.parse(localStorage.getItem(STORE_KEY));
+      if (s && typeof s === 'object' && s.runs && typeof s.runs === 'object') {
+        // Keep only well-formed run records, so old or damaged saves can't stop the game loading.
+        const runs = {};
+        for (const [id, r] of Object.entries(s.runs)) {
+          if (r && typeof r === 'object') {
+            runs[id] = {
+              exploreDone: !!r.exploreDone, cleared: !!r.cleared,
+              subs: +r.subs || 0, correct: +r.correct || 0, hints: +r.hints || 0, wipeouts: +r.wipeouts || 0
+            };
+          }
+        }
+        return { name: typeof s.name === 'string' ? s.name : '', runs, unlockAll: !!s.unlockAll };
+      }
+    } catch (e) { /* storage blocked or empty */ }
+    return { name: '', runs: {} };
+  }
+  let save = loadSave();
+  function persist() { try { localStorage.setItem(STORE_KEY, JSON.stringify(save)); } catch (e) { /* progress just won't persist */ } }
+  function runStats(id) {
+    if (!save.runs[id]) save.runs[id] = { exploreDone: false, cleared: false, subs: 0, correct: 0, hints: 0, wipeouts: 0 };
+    return save.runs[id];
+  }
+  const TEACHER = /teacher/i.test(location.hash);
+  const DEBUG = /debug/i.test(location.hash);
+
+  // ---------- small helpers ----------
+  function h(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const eq = s => `<span class="eq">${s}</span>`;
+  const pt = p => `(${fmt(p.x)}, ${fmt(p.y)})`;
+  const sgn = c => (c ? L.signed(c) : '');
+  // A fraction as a student would type it: 3, −2, 1/2, −3/4
+  const qInput = q => (q.d === 1 ? fmt(q.n) : fmt(q.n) + '/' + q.d);
+  const sd = d => (d > 0 ? '+' + d : fmt(d));
+  // y = 3x − 2 in words: "multiply x by 3, then subtract 2"
+  function ruleWords(m, c) {
+    const first = m === 1 ? 'start with x' : m === -1 ? 'multiply x by −1' : `multiply x by ${fmt(m)}`;
+    return c > 0 ? `${first}, then add ${c}` : c < 0 ? `${first}, then subtract ${-c}` : first;
+  }
+  const clampY = y => Math.max(-10.6, Math.min(10.6, y));
+  // Points along a curve y = f(x), for drawing and riding it smoothly.
+  const sample = (f, a, b) => { const out = []; for (let i = 0; i <= 40; i++) { const x = a + (b - a) * i / 40; out.push({ x, y: f(x) }); } return out; };
+  const CHEERS = ['Clean run!', 'Sick line!', 'Nailed it!', 'Smooth!', 'Shredding!', 'Stomped it!'];
+  const cheer = () => CHEERS[Math.floor(Math.random() * CHEERS.length)];
+  const INVALID_MSG = 'Type a whole number or a fraction, like 3, −2 or 3/4.';
+  const ROUNDED_MSG = 'So close! Use a fraction instead of a rounded decimal: 1/3, not 0.33.';
+  const MIXED_MSG = 'Write it as a top-heavy fraction instead of a mixed number: 3/2, not 1 1/2.';
+
+  class Session {
+    constructor(parent) {
+      this.dead = false;
+      this.killP = new Promise((_, rej) => { this.kill = () => { if (!this.dead) { this.dead = true; rej(CANCEL); } }; });
+      this.killP.catch(() => {});
+      if (parent) parent.killP.catch(() => this.kill());
+    }
+    wait(p) { return Promise.race([p, this.killP]); }
+  }
+
+  // ---------- panel ----------
+  class Panel {
+    constructor(el, session) { this.el = el; this.session = session; }
+    layout(kind, meta) {
+      this.el.innerHTML = `
+        <div class="phead"><span class="pill ${kind.toLowerCase()}">${kind}</span><span class="pmeta">${meta || ''}</span><span class="pextra"></span><button class="help-btn" type="button" aria-label="How do I answer this?" title="How do I answer this?" hidden>?</button></div>
+        <div class="coach"><div class="avatar" aria-hidden="true"><svg viewBox="-4 2 108 96"><use href="#rider"/></svg></div><div class="bubble"></div></div>
+        <div class="work"></div>
+        <div class="fb" role="status" aria-live="polite"></div>
+        <div class="hintbox" hidden></div>
+        <div class="actions"></div>`;
+      const q = s => this.el.querySelector(s);
+      this.meta = q('.pmeta'); this.extra = q('.pextra'); this.bubble = q('.bubble'); this.work = q('.work');
+      this.helpBtn = q('.help-btn');
+      this.fbEl = q('.fb'); this.hintEl = q('.hintbox'); this.actions = q('.actions');
+      this.el.scrollTop = 0;
+    }
+    setMeta(t) { this.meta.textContent = t; }
+    // Show the ? button for a walkthrough in HELP.
+    setHelp(key) {
+      this.helpBtn.hidden = !HELP[key];
+      this.helpBtn.onclick = () => showHelp(key);
+    }
+    say(html) { this.bubble.innerHTML = html; }
+    feedback(html, kind) {
+      this.fbEl.className = 'fb' + (kind ? ' ' + kind : '');
+      this.fbEl.innerHTML = html || '';
+      if (html) this.fbEl.scrollIntoView({ block: 'nearest' });
+    }
+    hint(level, html) {
+      this.hintEl.hidden = false;
+      this.hintEl.className = 'hintbox' + (level === 3 ? ' solution' : '');
+      this.hintEl.innerHTML = `<div class="hint-label">${level === 3 ? 'Solution' : 'Hint ' + level + ' of 2'}</div><div class="hint-body">${html}</div>`;
+      this.hintEl.scrollIntoView({ block: 'nearest' });
+    }
+    clearActions() { this.actions.innerHTML = ''; }
+    button(label, cls) {
+      const b = h(`<button class="btn ${cls || ''}" type="button">${label}</button>`);
+      this.actions.appendChild(b);
+      return b;
+    }
+    waitButton(label, cls) {
+      this.clearActions();
+      const b = this.button(label, cls);
+      b.scrollIntoView({ block: 'nearest' });
+      setTimeout(() => { if (b.isConnected) b.focus({ preventScroll: true }); }, 60);
+      return this.session.wait(new Promise(res => b.addEventListener('click', () => res(), { once: true })));
+    }
+  }
+
+  // ---------- widgets ----------
+  function markInput(inp, ok) {
+    inp.classList.remove('ok', 'bad');
+    void inp.offsetWidth;
+    inp.classList.add(ok ? 'ok' : 'bad');
+  }
+  function makeInput(aria) {
+    const inp = h(`<input class="ans" type="text" inputmode="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${esc(aria)}">`);
+    inp.addEventListener('input', () => inp.classList.remove('bad', 'ok'));
+    return inp;
+  }
+  function numField(parent, pre, post, aria) {
+    const row = h(`<label class="numrow"><span class="pre">${pre}</span><span class="post">${post || ''}</span></label>`);
+    const inp = makeInput(aria || pre.replace(/<[^>]+>/g, ''));
+    row.insertBefore(inp, row.querySelector('.post'));
+    parent.appendChild(row);
+    return inp;
+  }
+  function eqField(parent) {
+    const row = h('<div class="eqw"><span>y =</span><span class="slot-m"></span><span>x +</span><span class="slot-c"></span></div>');
+    const m = makeInput('gradient m'), c = makeInput('y-intercept c');
+    row.querySelector('.slot-m').replaceWith(m);
+    row.querySelector('.slot-c').replaceWith(c);
+    parent.appendChild(row);
+    parent.appendChild(h('<p class="tip">Fill in both boxes. Type 1 for plain x, and 0 if there is no number on the end. Negative? Type a minus: −3 or −1/2.</p>'));
+    return { m, c, lock(on) { m.disabled = on; c.disabled = on; } };
+  }
+  // A table of values. Columns alternate value / gap so difference bubbles sit between the values.
+  function tableWidget(parent, o) {
+    const n = o.xs.length;
+    const cols = `2.4rem repeat(${n - 1}, minmax(2.5rem, 1fr) minmax(1.7rem, .62fr)) minmax(2.5rem, 1fr)`;
+    const el = h(`<div class="tbl" style="grid-template-columns:${cols}"></div>`);
+    const at = (r, c) => `grid-row:${r};grid-column:${c}`;
+    el.appendChild(h(`<div class="th" style="${at(1, 1)}">x</div>`));
+    el.appendChild(h(`<div class="th" style="${at(2, 1)}">y</div>`));
+    const xCells = o.xs.map((x, i) => el.appendChild(h(`<div class="cell xc" style="${at(1, 2 + 2 * i)}">${fmt(x)}</div>`)));
+    const yInputs = [], dInputs = [];
+    const yCells = o.ys.map((y, i) => {
+      const cell = h(`<div class="cell yc" style="${at(2, 2 + 2 * i)}"></div>`);
+      if (o.editY) { const inp = makeInput(`${o.label ? o.label + ': ' : ''}y when x is ${fmt(o.xs[i])}`); cell.appendChild(inp); yInputs.push(inp); }
+      else cell.textContent = fmt(y);
+      return el.appendChild(cell);
+    });
+    const dCells = [];
+    if (o.diffs) {
+      el.appendChild(h(`<div class="th small" style="${at(3, 1)}">diff</div>`));
+      for (let i = 0; i < n - 1; i++) {
+        const cell = h(`<div class="cell dc" style="${at(3, 3 + 2 * i)}"></div>`);
+        if (o.diffs === 'edit') { const inp = makeInput(`difference from x = ${fmt(o.xs[i])} to x = ${fmt(o.xs[i + 1])}`); cell.appendChild(inp); dInputs.push(inp); }
+        dCells.push(el.appendChild(cell));
+      }
+    }
+    parent.appendChild(el);
+    return {
+      el, yInputs, dInputs,
+      colState(i, s) {
+        for (const c of [xCells[i], yCells[i]]) { c.classList.remove('ok', 'bad', 'hl'); if (s) c.classList.add(s); }
+      },
+      showDiff(i, text, cls) { dCells[i].innerHTML = `<span class="dbub ${cls || ''}">${text}</span>`; },
+      lock(on) { for (const inp of [...yInputs, ...dInputs]) inp.disabled = on; }
+    };
+  }
+
+  // ---------- shared ride helpers ----------
+  function gateFlags(g, points, cls = 'gate') { return points.map(p => ({ x: p.x, y: p.y, el: g.flag(p.x, p.y, cls) })); }
+  function letterFlag(g, p, letter) {
+    const left = p.x >= 3;
+    g.label(p.x, p.y, `${letter} ${pt(p)}`, { dx: left ? -8 : 20, dy: left ? -30 : -18, anchor: left ? 'end' : 'start', cls: 'gate-letter' });
+  }
+  // The rider rides the student's line and wipes out at the first gate it misses.
+  async function rideStudent(g, m, c, gates) {
+    const mv = qval(m), cv = qval(c);
+    g.line(mv, cv, { cls: 'student', layer: 'scratch' });
+    const sorted = gates.slice().sort((a, b) => a.x - b.x);
+    const onIt = gt => Math.abs(mv * gt.x + cv - gt.y) < 1e-9;
+    const missed = sorted.find(gt => !onIt(gt));
+    const endX = missed ? missed.x : 6;
+    // A line that never enters the grid wipes out at the grid edge, never on a true gate.
+    const edgeX = missed ? missed.x : -6;
+    const path = L.pathTo(mv, cv, endX) || [{ x: edgeX, y: clampY(mv * edgeX + cv) }];
+    await g.ride(path, { crash: !!missed, gates: sorted.filter(gt => gt.x < endX && onIt(gt)) });
+  }
+  function rideTrue(g, m, c, gates, opts) {
+    return g.ride(L.clipLine(qval(m), qval(c)), Object.assign({ gates }, opts));
+  }
+  const ISSUE_TEXT = {
+    height: 'Wrong height: you missed the Base Station.',
+    direction: 'Wrong way! Read the run from left to right.',
+    flat: 'Your run is flat (m = 0), but this one climbs or drops.',
+    steep: 'Too steep.',
+    shallow: 'Not steep enough.'
+  };
+  function lineMsg(issues, noMap) {
+    return issues.map(i => (i === 'height' && noMap ? 'Wrong height: your c is off, so the run misses the gates.' : ISSUE_TEXT[i])).join(' ');
+  }
+  function slopeMsg(mAns, m) {
+    if (mAns.n === 0) return `A flat run has m = 0, but this one goes ${m.n > 0 ? 'up' : 'down'}.`;
+    if (Math.sign(mAns.n) !== Math.sign(m.n)) return `Wrong way! You rode a ${mAns.n > 0 ? 'lift up' : 'run down'}, but reading left to right this one goes ${m.n > 0 ? 'up' : 'down'}.`;
+    return Math.abs(qval(mAns)) > Math.abs(qval(m)) ? 'Too steep! Your line climbs or drops faster than the run.' : 'Not steep enough! Your line is flatter than the run.';
+  }
+  // Read a list of number inputs. Returns { status } or { status: 'ok', vals }.
+  function readNums(inputs, emptyMsg, expected) {
+    const ps = inputs.map(i => L.parseNum(i.value));
+    if (ps.some(p => p.empty)) return { status: 'empty', msg: emptyMsg };
+    if (ps.some(p => p.mixed)) return { status: 'invalid', msg: MIXED_MSG };
+    if (ps.some(p => p.invalid)) return { status: 'invalid', msg: INVALID_MSG };
+    if (expected) {
+      for (let i = 0; i < ps.length; i++) {
+        if (expected[i] && L.judgeNum(inputs[i].value, expected[i]).status === 'rounded') return { status: 'rounded', msg: ROUNDED_MSG };
+      }
+    }
+    return { status: 'ok', vals: ps.map(p => p.q) };
+  }
+
+  // =====================================================================
+  // Question types. Each has: say, mount(ctx), read(), check(), play(res), hint(level), solve(), lock(on)
+  // =====================================================================
+
+  // Run 1: plant a flag for every pair.
+  function qPlot(d) {
+    const pts = d.points, n = pts.length, m = qval(d.m), c = qval(d.c);
+    let placed = [], tw, counter, locked = false, g, panel;
+    const isRight = p => pts.some(q => q.x === p.x && q.y === p.y);
+    const update = () => { counter.innerHTML = `Flags planted: <b>${placed.length}</b> of ${n}`; };
+    return {
+      key: 'plot' + JSON.stringify(pts),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Plant a flag for every pair in the table. <b>Tap the grid</b> to plant one. Tap a flag again to pull it out.');
+        tw = tableWidget(panel.work, { xs: pts.map(p => p.x), ys: pts.map(p => p.y) });
+        counter = panel.work.appendChild(h('<p class="counter"></p>'));
+        update();
+        g.setTap((p, raw) => {
+          if (locked) return;
+          let i = placed.findIndex(f => f.x === p.x && f.y === p.y);
+          // The flag's cloth sits above its point, so a tap on the cloth counts as a tap on that flag.
+          const onPoint = Math.hypot(raw.x - p.x, raw.y - p.y) < 0.3;
+          if (i < 0 && !onPoint) i = placed.findIndex(f => Math.abs(raw.x - f.x) < 0.65 && raw.y - f.y > 0.2 && raw.y - f.y < 0.9);
+          if (i >= 0) { placed[i].el.remove(); placed.splice(i, 1); }
+          else if (placed.length >= n) { panel.feedback(`That's ${n} flags already. Tap a flag to pull it out first.`, 'info'); return; }
+          else placed.push({ x: p.x, y: p.y, el: g.flag(p.x, p.y, 'mine') });
+          update();
+        }, { coords: true });
+      },
+      read() { return placed.length < n ? { status: 'empty', msg: `Plant all ${n} flags first. You have ${placed.length}.` } : { status: 'ok' }; },
+      check() {
+        const r = L.checkPlot(placed, pts), k = r.wrong.length;
+        return { correct: r.correct, msg: k === 1 ? 'One flag is in the wrong place.' : `${k} flags are in the wrong place.` };
+      },
+      async play(res) {
+        const sorted = placed.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+        if (res.correct) {
+          g.line(m, c);
+          sorted.forEach(f => f.el.setAttribute('class', 'flag ok'));
+          pts.forEach((p, i) => tw.colState(i, 'ok'));
+          await g.ride(L.clipLine(m, c), { gates: sorted });
+          return;
+        }
+        const idx = sorted.findIndex(f => !isRight(f));
+        await g.ride(sorted.slice(0, idx + 1), { crash: true, gates: sorted.slice(0, idx) });
+        placed.filter(f => !isRight(f)).forEach(f => g.dropFlag(f.el));
+        placed = placed.filter(isRight);
+        pts.forEach((p, i) => tw.colState(i, placed.some(f => f.x === p.x && f.y === p.y) ? 'ok' : 'bad'));
+        update();
+      },
+      hint(level) {
+        if (level === 1) return 'Find <b>x</b> first: go <b>across</b> to it on the x-axis. Then find <b>y</b>: go <b>up</b> if it is positive, <b>down</b> if it is negative.';
+        const i = pts.findIndex(p => !placed.some(f => f.x === p.x && f.y === p.y));
+        const p = pts[i];
+        tw.colState(i, 'hl');
+        g.clearLayer('guides');
+        g.guide([{ x: 0, y: 0 }, { x: p.x, y: 0 }, { x: p.x, y: p.y }]);
+        g.dot(p.x, p.y, { cls: 'hint-dot', layer: 'guides' });
+        const across = p.x === 0 ? 'stay at 0 across' : `go ${p.x > 0 ? 'right' : 'left'} ${Math.abs(p.x)}`;
+        const updown = p.y === 0 ? 'stay on the x-axis' : `go ${p.y > 0 ? 'up' : 'down'} ${Math.abs(p.y)}`;
+        return `Try the pair x = ${fmt(p.x)}, y = ${fmt(p.y)}. Start at 0, ${across}, then ${updown}. Follow the dotted path.`;
+      },
+      solve() {
+        placed.forEach(f => f.el.remove());
+        placed = [];
+        g.clearLayer('guides');
+        g.line(m, c, { cls: 'ghost-line' });
+        pts.forEach(p => g.flag(p.x, p.y, 'ghost'));
+        pts.forEach((p, i) => tw.colState(i, null));
+        update();
+        return `Here is where every flag goes. They line up on ${eq(eqStr(d.m, d.c))}.`;
+      },
+      lock(on) { locked = on; }
+    };
+  }
+
+  // Run 2: fill in a table of values.
+  function qFill(d) {
+    const { xs, ys } = d, mN = d.m.n, cN = d.c.n;
+    let tw, g, panel, vals, lastWrong = [];
+    return {
+      key: 'fill' + mN + ',' + cN + ',' + xs[0],
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say(`The rule is ${eq(eqStr(d.m, d.c))}. For each <b>x</b> in the table, ${ruleWords(mN, cN)} to get <b>y</b>. Fill in every y.`);
+        panel.setHelp('fill');
+        tw = tableWidget(panel.work, { xs, ys, editY: true });
+        setTimeout(() => tw.yInputs[0].focus({ preventScroll: true }), 80);
+      },
+      read() { const r = readNums(tw.yInputs, 'Fill in every y value.'); if (r.vals) vals = r.vals; return r; },
+      check() {
+        lastWrong = [];
+        vals.forEach((v, i) => { const ok = qeq(v, Q(ys[i])); markInput(tw.yInputs[i], ok); if (!ok) lastWrong.push(i); });
+        return { correct: !lastWrong.length, wrong: lastWrong, msg: lastWrong.length === 1 ? 'One y value is off.' : `${lastWrong.length} y values are off.` };
+      },
+      async play(res) {
+        g.clearLayer('marks');
+        const pts = xs.map((x, i) => ({ x, y: qval(vals[i]) }));
+        if (res.correct) {
+          g.line(mN, cN);
+          await g.ride(L.clipLine(mN, cN), { gates: gateFlags(g, pts) });
+          return;
+        }
+        pts.forEach((p, i) => g.flag(p.x, p.y, res.wrong.includes(i) ? 'bad' : 'mine'));
+        await g.ride(pts.slice(0, res.wrong[0] + 1).map(p => ({ x: p.x, y: clampY(p.y) })), { crash: true });
+      },
+      hint(level) {
+        if (level === 1) return cN ? `Swap each x into the rule: y = ${fmt(mN)} × x${sgn(cN)}. Multiply first, then ${cN < 0 ? 'subtract' : 'add'}.` : `Swap each x into the rule: y = ${fmt(mN)} × x. Multiply each x by ${fmt(mN)}.`;
+        const i = lastWrong[0], x = xs[i];
+        tw.colState(i, 'hl');
+        return cN ? `When x = ${fmt(x)}: y = ${fmt(mN)} × ${paren(x)}${sgn(cN)} = ${fmt(mN * x)}${sgn(cN)} = ${fmt(ys[i])}.` : `When x = ${fmt(x)}: y = ${fmt(mN)} × ${paren(x)} = ${fmt(ys[i])}.`;
+      },
+      solve() {
+        tw.yInputs.forEach((inp, i) => { inp.value = fmt(ys[i]); markInput(inp, true); });
+        return `Each y goes ${mN > 0 ? 'up' : 'down'} by ${Math.abs(mN)} as x goes up by 1. That jump is the gradient of ${eq(eqStr(d.m, d.c))}.`;
+      },
+      lock(on) { tw.lock(on); }
+    };
+  }
+
+  // Run 2: read the difference and the y-intercept from a table.
+  function qRead(d) {
+    const { xs, ys } = d, diff = d.m.n, c0 = d.c.n;
+    let tw, g, panel, dInp, cInp, vals, okD, okC;
+    return {
+      key: 'read' + diff + ',' + c0 + ',' + xs[0],
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Read the table. What is the <b>1st common difference</b> (how much y goes up or down each step), and what is <b>y when x = 0</b>?');
+        panel.setHelp('read');
+        tw = tableWidget(panel.work, { xs, ys, diffs: 'show' });
+        dInp = numField(panel.work, '1st common difference =', '', '1st common difference');
+        cInp = numField(panel.work, 'When x = 0, y =', '', 'y when x is 0');
+      },
+      read() { const r = readNums([dInp, cInp], 'Fill in both boxes.'); if (r.vals) vals = r.vals; return r; },
+      check() {
+        okD = qeq(vals[0], d.m); okC = qeq(vals[1], d.c);
+        markInput(dInp, okD); markInput(cInp, okC);
+        return { correct: okD && okC, msg: !okD && !okC ? 'Both boxes need another look.' : (!okD ? 'Check the difference.' : 'Check y when x = 0.') };
+      },
+      async play(res) {
+        g.clearLayer('scratch'); g.clearLayer('marks');
+        const gates = gateFlags(g, xs.map((x, i) => ({ x, y: ys[i] })));
+        if (res.correct) { g.line(diff, c0); await rideTrue(g, d.m, d.c, gates); return; }
+        await rideStudent(g, vals[0], vals[1], gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Subtract each y from the next one: that is the <b>1st common difference</b>. For y when x = 0, find <b>0</b> in the x row.';
+        tw.showDiff(0, sd(ys[1] - ys[0]), 'hint');
+        tw.colState(xs.indexOf(0), 'hl');
+        return `${fmt(ys[1])} − ${paren(ys[0])} = ${fmt(ys[1] - ys[0])}. Is it the same all the way along? The highlighted column is x = 0.`;
+      },
+      solve() {
+        L.diffsOf(ys).forEach((v, i) => tw.showDiff(i, sd(v)));
+        dInp.value = fmt(diff); cInp.value = fmt(c0); markInput(dInp, true); markInput(cInp, true);
+        return `The difference is ${fmt(diff)} every time, and y = ${fmt(c0)} when x = 0. So the run is ${eq(eqStr(d.m, d.c))}.`;
+      },
+      lock(on) { dInp.disabled = on; cInp.disabled = on; }
+    };
+  }
+
+  // Run 2: is it a straight run?
+  function qStraight(d) {
+    const { xs, ys, diffs, linear } = d;
+    let tw, g, panel, vals, verdict = null, btns, lastWrong = [];
+    return {
+      key: 'straight' + ys.join(','),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Is this a <b>straight run</b>? Work out how much y changes each step (the differences), then decide.');
+        panel.setHelp('straight');
+        tw = tableWidget(panel.work, { xs, ys, diffs: 'edit' });
+        const row = panel.work.appendChild(h('<div class="verdict" role="group" aria-label="Your verdict"><button type="button" class="toggle" data-v="straight">Straight run</button><button type="button" class="toggle" data-v="not">Not straight</button></div>'));
+        btns = [...row.querySelectorAll('.toggle')];
+        btns.forEach(b => b.addEventListener('click', () => {
+          verdict = b.dataset.v;
+          btns.forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        }));
+        btns.forEach(b => b.setAttribute('aria-pressed', 'false'));
+      },
+      read() {
+        const r = readNums(tw.dInputs, 'Fill in every difference.');
+        if (r.status !== 'ok') return r;
+        if (!verdict) return { status: 'empty', msg: 'Choose <b>Straight run</b> or <b>Not straight</b>.' };
+        vals = r.vals;
+        return r;
+      },
+      check() {
+        lastWrong = [];
+        vals.forEach((v, i) => { const ok = qeq(v, Q(diffs[i])); markInput(tw.dInputs[i], ok); if (!ok) lastWrong.push(i); });
+        const vOk = (verdict === 'straight') === linear;
+        const msg = lastWrong.length ? 'Check your differences.' : (linear ? 'Your differences are all the same. What does that tell you?' : 'Your differences are not all the same. What does that tell you?');
+        return { correct: !lastWrong.length && vOk, wrong: lastWrong, msg };
+      },
+      async play(res) {
+        g.clearLayer('marks'); g.clearLayer('lines');
+        const pts = xs.map((x, i) => ({ x, y: ys[i] }));
+        const gates = gateFlags(g, pts);
+        if (res.correct) {
+          if (linear) { g.line(d.m.n, d.c.n); await rideTrue(g, d.m, d.c, gates); }
+          else {
+            const f = { square: x => x * x + d.k, negsquare: x => -x * x + d.k, power: x => Math.pow(2, x) - d.k }[d.kind];
+            const path = f ? sample(f, xs[0], xs[xs.length - 1]) : pts;
+            g.polyline(path, { cls: 'run-line mogul' });
+            g.banner('MOGULS!', 'warn');
+            await g.ride(path, { gates });
+          }
+          return;
+        }
+        let idx;
+        if (res.wrong.length) idx = res.wrong[0] + 1;
+        else if (linear) idx = pts.length - 1;
+        else idx = diffs.findIndex(v => v !== diffs[0]) + 1;
+        await g.ride(pts.slice(0, idx + 1), { crash: true, gates: gates.slice(0, idx) });
+      },
+      hint(level) {
+        if (level === 1) return 'Subtract each y from the next one. A straight run has the <b>same</b> difference every time.';
+        if (!lastWrong.length) return `Your differences are ${diffs.map(fmt).join(', ')}. A straight run has the <b>same</b> difference every time. Are yours all the same?`;
+        const i = lastWrong[0];
+        tw.dInputs[i].value = fmt(diffs[i]);
+        markInput(tw.dInputs[i], true);
+        return `${fmt(ys[i + 1])} − ${paren(ys[i])} = ${fmt(diffs[i])}. I filled that one in. Do the rest the same way, then compare them.`;
+      },
+      solve() {
+        tw.dInputs.forEach((inp, i) => { inp.value = fmt(diffs[i]); markInput(inp, true); });
+        verdict = linear ? 'straight' : 'not';
+        btns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === verdict)));
+        return linear
+          ? `Every difference is ${fmt(diffs[0])}, so it is a <b>straight run</b>.`
+          : `The differences are ${diffs.map(fmt).join(', ')}. They change, so it is <b>not straight</b>.`;
+      },
+      lock(on) { tw.lock(on); btns.forEach(b => { b.disabled = on; }); }
+    };
+  }
+
+  // Run 3: intercepts and reading values.
+  function qBlue(d) {
+    const mN = d.m.n, cN = d.c.n, type = d.type, T = d.target;
+    const isTap = type === 'tapY' || type === 'tapX';
+    const name = type === 'tapY' ? 'BASE STATION' : 'SNOW LINE';
+    let g, panel, pick = null, marker = null, pickText, inp, val, locked = false;
+    const SAY = {
+      tapY: 'Tap the <b>Base Station</b>: the point where the run crosses the <b>y-axis</b>.',
+      tapX: 'Tap the <b>Snow Line</b>: the point where the run crosses the <b>x-axis</b>.',
+      xToY: `Read the mountain. When <b>x = ${fmt(d.given)}</b>, what is <b>y</b>?`,
+      yToX: `Read the mountain. When <b>y = ${fmt(d.given)}</b>, what is <b>x</b>?`
+    };
+    return {
+      key: type + mN + ',' + cN + ',' + (d.given ?? ''),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say(SAY[type]);
+        g.line(mN, cN);
+        g.idleOnLine(mN, cN, -5.3);
+        if (isTap) {
+          pickText = panel.work.appendChild(h('<p class="counter">Your pick: <b>none yet</b></p>'));
+          g.setTap(p => {
+            if (locked) return;
+            pick = p;
+            if (marker) marker.remove();
+            marker = g.dot(p.x, p.y, { cls: 'pick', r: 8 });
+            pickText.innerHTML = `Your pick: <b>${pt(p)}</b>`;
+          });
+        } else {
+          inp = numField(panel.work, type === 'xToY' ? 'y =' : 'x =', '', type === 'xToY' ? 'y' : 'x');
+          setTimeout(() => inp.focus({ preventScroll: true }), 80);
+        }
+      },
+      read() {
+        if (isTap) return pick ? { status: 'ok' } : { status: 'empty', msg: 'Tap a point on the grid first.' };
+        const r = readNums([inp], 'Type your answer first.');
+        if (r.vals) val = r.vals[0];
+        return r;
+      },
+      check() {
+        if (isTap) {
+          const other = type === 'tapY' ? { x: d.xInt, y: 0 } : { x: 0, y: cN };
+          const swapped = pick.x === other.x && pick.y === other.y;
+          return { correct: pick.x === T.x && pick.y === T.y, msg: swapped ? `Missed the lift! That point is on the ${type === 'tapY' ? 'x' : 'y'}-axis.` : 'Missed the lift!' };
+        }
+        const ok = qeq(val, Q(d.answer));
+        markInput(inp, ok);
+        return { correct: ok, msg: 'Not that point. Missed the lift!' };
+      },
+      async play(res) {
+        g.clearLayer('scratch');
+        if (res.correct) {
+          await g.ride(L.pathTo(mN, cN, T.x), { burst: true });
+          if (isTap) { if (marker) marker.remove(); g.station(T, name, { cls: type === 'tapY' ? 'cyan' : 'yellow' }); }
+          else g.flag(T.x, T.y, 'ok');
+          return;
+        }
+        // The rider heads for the student's point and wipes out there, so it never lands on the answer.
+        let P;
+        if (isTap) { P = pick; marker.setAttribute('class', 'dot pick bad'); }
+        else if (type === 'xToY') { P = { x: d.given, y: clampY(qval(val)) }; g.dot(P.x, P.y, { cls: 'pick bad', r: 7, layer: 'scratch' }); }
+        else { P = { x: Math.max(-6.6, Math.min(6.6, qval(val))), y: d.given }; g.dot(P.x, P.y, { cls: 'pick bad', r: 7, layer: 'scratch' }); }
+        const path = L.pathTo(mN, cN, P.x - 1) || [];
+        await g.ride(path.concat([{ x: P.x, y: P.y }]), { crash: true });
+      },
+      hint(level) {
+        if (level === 1) {
+          return {
+            tapY: 'The Base Station is where the run crosses the <b>y-axis</b>, the up-and-down axis.',
+            tapX: 'The Snow Line is where the run crosses the <b>x-axis</b>, the across axis.',
+            xToY: `Go across to x = ${fmt(d.given)} on the x-axis, then go up or down until you hit the run.`,
+            yToX: `Find y = ${fmt(d.given)} on the y-axis, then go across until you hit the run.`
+          }[type];
+        }
+        if (type === 'tapY') { g.axisHot('y'); return 'The glowing line is the y-axis. Where does the run touch it?'; }
+        if (type === 'tapX') { g.axisHot('x'); return 'The glowing line is the x-axis. Where does the run touch it?'; }
+        if (type === 'xToY') { g.guide([{ x: T.x, y: 0 }, T]); return 'Follow the dotted line to the run. Now read across to the y-axis.'; }
+        g.guide([{ x: 0, y: T.y }, T]);
+        return 'Follow the dotted line to the run. Now read down (or up) to the x-axis.';
+      },
+      solve() {
+        if (isTap) { if (marker) marker.remove(); g.station(T, name, { cls: type === 'tapY' ? 'cyan' : 'yellow' }); return `The ${type === 'tapY' ? 'Base Station' : 'Snow Line'} is at ${pt(T)}.`; }
+        g.clearLayer('guides');
+        g.guide(type === 'xToY' ? [{ x: T.x, y: 0 }, T, { x: 0, y: T.y }] : [{ x: 0, y: T.y }, T, { x: T.x, y: 0 }]);
+        g.flag(T.x, T.y, 'ghost');
+        inp.value = fmt(d.answer);
+        markInput(inp, true);
+        return type === 'xToY' ? `At x = ${fmt(T.x)} the run is at y = ${fmt(T.y)}.` : `The run is at y = ${fmt(T.y)} when x = ${fmt(T.x)}.`;
+      },
+      lock(on) { locked = on; if (inp) inp.disabled = on; }
+    };
+  }
+
+  // Run 4 and 5: read the gradient between gates A and B.
+  // opts.parts: also ask for rise and run (Red Run), so students show the steps to m.
+  function qGradient(d, opts = {}) {
+    const { A, B } = d, run = B.x - A.x, rise = B.y - A.y, parts = !!opts.parts;
+    let g, panel, inp, riseInp, runInp, val, partsOk = true;
+    return {
+      key: 'grad' + JSON.stringify([A, B]),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say(parts
+          ? `Find the gradient <b>m</b> of this run. Go from gate <b class="nowrap">A ${pt(A)}</b> to gate <b class="nowrap">B ${pt(B)}</b>: count the <b>rise</b> (up is +, down is −) and the <b>run</b> (across), then work out m = rise ÷ run.`
+          : 'What is the gradient <b>m</b> of this run? Use gates <b>A</b> and <b>B</b>.');
+        g.line(qval(d.m), qval(d.c));
+        this.gates = gateFlags(g, [A, B]);
+        letterFlag(g, A, 'A'); letterFlag(g, B, 'B');
+        g.idleOnLine(qval(d.m), qval(d.c), -5.3);
+        if (parts) {
+          riseInp = numField(panel.work, 'rise =', '', 'rise from A to B');
+          runInp = numField(panel.work, 'run =', '', 'run from A to B');
+          // Show buttons: the rise goes straight up or down from A to B's height, then the run goes across to B.
+          const D = { x: A.x, y: B.y };
+          let runEl = null, riseEl = null, guideEl = null;
+          const showRise = () => {
+            if (riseEl) riseEl.remove();
+            const p = g.grow(A, D, { cls: 'grow-rise', label: i => 'rise ' + (rise < 0 ? L.MINUS : '') + i });
+            riseEl = g.layers.guides.lastChild;
+            return p;
+          };
+          const showRun = () => {
+            if (runEl) runEl.remove();
+            if (guideEl) guideEl.remove();
+            guideEl = riseEl && riseEl.isConnected ? null : g.guide([A, D]);
+            const p = g.grow(D, B, { cls: 'grow-run', label: i => 'run ' + i, below: rise < 0 });
+            runEl = g.layers.guides.lastChild;
+            return p;
+          };
+          for (const [inpEl, fn, what] of [[riseInp, showRise, 'rise'], [runInp, showRun, 'run']]) {
+            const b = h(`<button class="help-btn show-btn" type="button" aria-label="Show me the ${what} on the graph" title="Show me the ${what}">?</button>`);
+            b.addEventListener('click', async () => { b.disabled = true; await fn(); b.disabled = false; });
+            inpEl.closest('.numrow').appendChild(b);
+          }
+        }
+        inp = numField(panel.work, 'm =', '', 'gradient m');
+        if (parts) [riseInp, runInp, inp].forEach(i => i.closest('.numrow').classList.add('aligned'));
+        setTimeout(() => (riseInp || inp).focus({ preventScroll: true }), 80);
+      },
+      read() {
+        const boxes = parts ? [riseInp, runInp, inp] : [inp];
+        const r = readNums(boxes, parts ? 'Fill in rise, run and m.' : 'Type the gradient first.', parts ? [null, null, d.m] : [d.m]);
+        if (r.vals) val = r.vals[r.vals.length - 1];
+        if (r.vals && parts) this.rr = r.vals;
+        return r;
+      },
+      check() {
+        const ok = qeq(val, d.m);
+        markInput(inp, ok);
+        if (!parts) return { correct: ok, msg: ok ? '' : slopeMsg(val, d.m) };
+        const okRise = qeq(this.rr[0], Q(rise)), okRun = qeq(this.rr[1], Q(run));
+        markInput(riseInp, okRise); markInput(runInp, okRun);
+        partsOk = okRise && okRun;
+        let msg = '';
+        if (!okRise) msg += 'Check the rise: count up (+) or down (−) from A to B. ';
+        if (!okRun) msg += 'Check the run: count the squares across from A to B. ';
+        if (!ok) msg += partsOk ? 'Now divide: m = rise ÷ run.' : slopeMsg(val, d.m);
+        return { correct: ok && partsOk, msg: msg.trim() };
+      },
+      async play(res) {
+        g.clearLayer('scratch');
+        if (res.correct) { await rideTrue(g, d.m, d.c, this.gates); return; }
+        // Right m but wrong rise or run: wipe out at gate B.
+        if (qeq(val, d.m)) { await g.ride(L.pathTo(qval(d.m), qval(d.c), B.x), { crash: true, gates: [this.gates[0]] }); return; }
+        if (val.n !== 0 && Math.sign(val.n) !== Math.sign(d.m.n)) g.arrowFlash();
+        await rideStudent(g, val, L.qsub(Q(A.y), L.qmul(val, Q(A.x))), this.gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Reading <b>left to right</b>, is this a lift (up) or a run (down)? Then count the squares across and up or down from A to B.';
+        g.triangle(A, B);
+        return `From A to B: run ${run}, rise ${fmt(rise)}. Gradient is rise ÷ run.`;
+      },
+      solve() {
+        g.clearLayer('guides');
+        g.triangle(A, B);
+        if (parts) { riseInp.value = fmt(rise); runInp.value = fmt(run); markInput(riseInp, true); markInput(runInp, true); }
+        inp.value = qInput(d.m);
+        markInput(inp, true);
+        return `rise = ${fmt(rise)}, run = ${run}, so m = rise ÷ run = ${fmt(rise)} ÷ ${run} = <b>${qpretty(d.m)}</b>.`;
+      },
+      lock(on) { inp.disabled = on; if (parts) { riseInp.disabled = on; runInp.disabled = on; } }
+    };
+  }
+
+  // Run 4: drag to build a run with a given gradient.
+  function qBuild(d) {
+    const { A } = d, mN = d.m.n;
+    let g, panel, hd, B, lineEl, tri;
+    const redraw = () => {
+      if (lineEl) lineEl.remove();
+      if (tri) tri.remove();
+      const m = (B.y - A.y) / (B.x - A.x);
+      lineEl = g.line(m, A.y - m * A.x, { cls: 'built' });
+      tri = g.triangle(A, B, { labels: false, cls: 'quiet' });
+    };
+    return {
+      key: 'build' + mN + JSON.stringify(A),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say(`Build a run with gradient <b>m = ${fmt(mN)}</b>. Drag the orange handle (or select it and use the arrow keys).`);
+        this.gateA = gateFlags(g, [A])[0];
+        letterFlag(g, A, 'A');
+        B = { x: A.x + 1, y: A.y };
+        hd = g.handle(B, { constrain: q => ({ x: Math.max(q.x, A.x + 1), y: q.y }), onMove: p => { B = p; redraw(); }, label: 'Slope handle' });
+        redraw();
+        panel.work.appendChild(h('<p class="counter">Count the squares: how far up or down for each 1 across?</p>'));
+      },
+      read() { return { status: 'ok' }; },
+      check() {
+        const mAns = Q(B.y - A.y, B.x - A.x);
+        this.mAns = mAns;
+        return { correct: qeq(mAns, d.m), msg: qeq(mAns, d.m) ? '' : slopeMsg(mAns, d.m) };
+      },
+      async play(res) {
+        const mv = qval(this.mAns), cv = A.y - mv * A.x;
+        const gates = [this.gateA, { x: B.x, y: B.y }];
+        if (res.correct) { await g.ride(L.clipLine(mv, cv), { gates }); return; }
+        if (this.mAns.n !== 0 && Math.sign(this.mAns.n) !== Math.sign(mN)) g.arrowFlash();
+        await g.ride(L.pathTo(mv, cv, B.x), { crash: true, gates: [this.gateA] });
+      },
+      hint(level) {
+        if (level === 1) return `m = ${fmt(mN)} means <b>${mN > 0 ? 'up' : 'down'} ${Math.abs(mN)}</b> for every <b>1 across</b>. Reading left to right, that is ${mN > 0 ? 'a lift going up' : 'a run going down'}.`;
+        g.triangle(A, { x: A.x + 1, y: A.y + mN }, { cls: 'ghost' });
+        return `Here is one step from A: run 1, rise ${fmt(mN)}. Put the handle at the end of it.`;
+      },
+      solve() {
+        B = { x: A.x + 1, y: A.y + mN };
+        hd.set(B);
+        redraw();
+        return `Run 1, rise ${fmt(mN)}, so m = ${fmt(mN)} ÷ 1 = <b>${fmt(mN)}</b>.`;
+      },
+      lock(on) { g.lockHandles(on); }
+    };
+  }
+
+  // Run 5: write y = mx + c from a graph.
+  function qEquation(d) {
+    const { gates: gts } = d;
+    let g, panel, f, ans;
+    return {
+      key: 'eq' + qpretty(d.m) + ',' + d.c.n,
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Write the equation of this run.');
+        g.line(qval(d.m), qval(d.c));
+        this.gates = gateFlags(g, gts);
+        g.idleOnLine(qval(d.m), qval(d.c), -5.3);
+        f = eqField(panel.work);
+        setTimeout(() => f.m.focus({ preventScroll: true }), 80);
+      },
+      read() {
+        if (!f.m.value.trim() || !f.c.value.trim()) return { status: 'empty', msg: 'Fill in both boxes, m and c. If there is no number on the end, type 0.' };
+        ans = L.parseEq(f.m.value, f.c.value);
+        if (ans.status === 'invalid') return { status: 'invalid', msg: ans.mixed ? MIXED_MSG : INVALID_MSG };
+        if (L.roundedGradient(ans, d.m)) return { status: 'rounded', msg: ROUNDED_MSG };
+        return { status: 'ok' };
+      },
+      check() {
+        const okM = qeq(ans.m, d.m), okC = qeq(ans.c, d.c);
+        markInput(f.m, okM); markInput(f.c, okC);
+        return { correct: okM && okC, msg: lineMsg(L.diagnose(ans.m, ans.c, d.m, d.c)) };
+      },
+      async play(res) {
+        g.clearLayer('scratch');
+        if (res.correct) { await rideTrue(g, d.m, d.c, this.gates); return; }
+        if (ans.m.n !== 0 && L.qsign(ans.m) !== L.qsign(d.m)) g.arrowFlash();
+        await rideStudent(g, ans.m, ans.c, this.gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Start with the <b>Base Station</b>. Where does the run cross the y-axis? That number is <b>c</b>.';
+        const base = gts.find(p => p.x === 0), other = gts.find(p => p.x > 0) || gts.find(p => p.x < 0);
+        const [P1, P2] = other.x > 0 ? [base, other] : [other, base];
+        g.station(base, 'BASE STATION', { cls: 'cyan', layer: 'guides' });
+        g.triangle(P1, P2);
+        return `c = ${fmt(d.c.n)}. From ${P1 === base ? 'the Base Station' : 'the left gate'}: run ${P2.x - P1.x}, rise ${fmt(P2.y - P1.y)}. Gradient is rise ÷ run.`;
+      },
+      solve() {
+        f.m.value = qInput(d.m);
+        f.c.value = fmt(d.c.n);
+        markInput(f.m, true); markInput(f.c, true);
+        return `m = rise ÷ run = ${fmt(d.rise)} ÷ ${d.step} = ${qpretty(d.m)}. c = ${fmt(d.c.n)}. So the run is ${eq(eqStr(d.m, d.c))}.`;
+      },
+      lock(on) { f.lock(on); }
+    };
+  }
+
+  // Double Black: equation from two gates, no graph.
+  function qTwoPoint(d) {
+    const { A, B } = d, run = B.x - A.x, rise = B.y - A.y;
+    let g, panel, f, ans, fog;
+    const reveal = () => {
+      if (!fog) return;
+      fog.remove(); fog = null;
+      this_.gates = gateFlags(g, [A, B]);
+      letterFlag(g, A, 'A'); letterFlag(g, B, 'B');
+    };
+    const this_ = {
+      key: 'two' + JSON.stringify([A, B]),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say(`No map! Gate <b>A</b> is at <b>${pt(A)}</b> and Gate <b>B</b> is at <b>${pt(B)}</b>. Write the equation of the run through both.`);
+        fog = g.fog(['NO MAP!', 'Work it out from the gates.']);
+        f = eqField(panel.work);
+        setTimeout(() => f.m.focus({ preventScroll: true }), 80);
+      },
+      read() {
+        if (!f.m.value.trim() || !f.c.value.trim()) return { status: 'empty', msg: 'Fill in both boxes, m and c. If there is no number on the end, type 0.' };
+        ans = L.parseEq(f.m.value, f.c.value);
+        if (ans.status === 'invalid') return { status: 'invalid', msg: ans.mixed ? MIXED_MSG : INVALID_MSG };
+        if (L.roundedGradient(ans, d.m)) return { status: 'rounded', msg: ROUNDED_MSG };
+        return { status: 'ok' };
+      },
+      check() {
+        const okM = qeq(ans.m, d.m), okC = qeq(ans.c, d.c);
+        markInput(f.m, okM); markInput(f.c, okC);
+        return { correct: okM && okC, msg: lineMsg(L.diagnose(ans.m, ans.c, d.m, d.c), true) };
+      },
+      async play(res) {
+        reveal();
+        g.clearLayer('scratch');
+        if (res.correct) { g.line(qval(d.m), qval(d.c)); await rideTrue(g, d.m, d.c, this_.gates); return; }
+        await rideStudent(g, ans.m, ans.c, this_.gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Find the gradient first: how far <b>across</b> and how far <b>up or down</b> is it from A to B?';
+        reveal();
+        g.triangle(A, B);
+        return `With A = (x₁, y₁) and B = (x₂, y₂): m = (y₂ − y₁) ÷ (x₂ − x₁) = (${fmt(B.y)} − ${paren(A.y)}) ÷ (${fmt(B.x)} − ${paren(A.x)}) = ${fmt(rise)} ÷ ${run} = <b>${qpretty(d.m)}</b>.`;
+      },
+      solve() {
+        reveal();
+        g.line(qval(d.m), qval(d.c), { cls: 'ghost-line' });
+        f.m.value = qInput(d.m);
+        f.c.value = fmt(d.c.n);
+        markInput(f.m, true); markInput(f.c, true);
+        return `m = ${fmt(rise)} ÷ ${run} = ${qpretty(d.m)}. Put Gate A into y = mx + c: ${fmt(A.y)} = ${qpretty(d.m)} × ${paren(A.x)} + c, so c = ${fmt(d.c.n)}. The run is ${eq(eqStr(d.m, d.c))}.`;
+      },
+      lock(on) { f.lock(on); }
+    };
+    return this_;
+  }
+
+  // Double Black: the trap table where x goes up in 2s.
+  function qTrap(d) {
+    const { xs, ys } = d;
+    let g, panel, tw, dInp, mInp, vals;
+    return {
+      key: 'trap' + ys.join(','),
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Careful: check how <b>x</b> goes up in this table. Find the 1st common difference and the gradient <b>m</b>.');
+        tw = tableWidget(panel.work, { xs, ys, diffs: 'show' });
+        dInp = numField(panel.work, '1st common difference =', '', '1st common difference');
+        mInp = numField(panel.work, 'gradient m =', '', 'gradient m');
+      },
+      read() { const r = readNums([dInp, mInp], 'Fill in both boxes.'); if (r.vals) vals = r.vals; return r; },
+      check() {
+        const okD = qeq(vals[0], Q(d.d)), okM = qeq(vals[1], d.m);
+        this.okD = okD;
+        markInput(dInp, okD); markInput(mInp, okM);
+        return { correct: okD && okM, msg: !okD ? 'Check the difference between the y values.' : 'The difference is right, but m is not. How far does x go each step?' };
+      },
+      async play(res) {
+        g.clearLayer('scratch'); g.clearLayer('marks');
+        const gates = gateFlags(g, xs.map((x, i) => ({ x, y: ys[i] })));
+        if (res.correct) { g.line(d.m.n, d.c.n); await rideTrue(g, d.m, d.c, gates); return; }
+        // With a wrong difference, ride the slope that difference gives (difference ÷ 2), so the ride shows it.
+        await rideStudent(g, this.okD ? vals[1] : L.qdiv(vals[0], Q(2)), d.c, gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Look at the <b>x</b> row. How much does x go up by each step?';
+        tw.showDiff(0, sd(d.d), 'hint');
+        return `x goes up by <b>2</b> each step and y goes ${d.d > 0 ? 'up' : 'down'} by <b>${Math.abs(d.d)}</b>. Gradient is rise ÷ run, so m = ${fmt(d.d)} ÷ 2.`;
+      },
+      solve() {
+        L.diffsOf(ys).forEach((v, i) => tw.showDiff(i, sd(v)));
+        dInp.value = fmt(d.d); mInp.value = fmt(d.m.n);
+        markInput(dInp, true); markInput(mInp, true);
+        return `The difference is ${fmt(d.d)}, but each step is 2 across. So m = ${fmt(d.d)} ÷ 2 = <b>${fmt(d.m.n)}</b>.`;
+      },
+      lock(on) { dInp.disabled = on; mInp.disabled = on; }
+    };
+  }
+
+  // Each maker builds fresh data, then the question. q.data keeps the data for debugging.
+  const make = (build, gen) => () => { const d = gen(); const q = build(d); q.data = d; return q; };
+  const MAKERS = {
+    plot: make(qPlot, () => L.genPlot()),
+    plotHard: make(qPlot, () => L.genPlot({ hard: true, n: 5 })),
+    fill: make(qFill, () => L.genTable()),
+    read: make(qRead, () => L.genTable({ withZero: true })),
+    straight: make(qStraight, () => L.genStraight()),
+    tapY: make(qBlue, () => L.genBlue('tapY')),
+    tapX: make(qBlue, () => L.genBlue('tapX')),
+    xToY: make(qBlue, () => L.genBlue('xToY')),
+    yToX: make(qBlue, () => L.genBlue('yToX')),
+    grad: make(d => qGradient(d, { parts: true }), () => L.genReadGradient()),
+    gradWide: make(d => qGradient(d, { parts: true }), () => L.genReadGradient({ wide: true })),
+    build: make(qBuild, () => L.genBuildRun()),
+    frac: make(d => qGradient(d, { parts: true }), () => L.genFracGradient()),
+    fracWide: make(d => qGradient(d, { parts: true }), () => L.genFracGradient({ wide: true })),
+    eqInt: make(qEquation, () => L.genEquation('int')),
+    eqFrac: make(qEquation, () => L.genEquation('frac')),
+    twoPoint: make(qTwoPoint, () => L.genTwoPoint()),
+    trap: make(qTrap, () => L.genTrap())
+  };
+  const anyOf = list => list[Math.floor(Math.random() * list.length)];
+  // Question order by streak, so every type comes up on the way to 5 in a row.
+  const orderBy = seq => streak => { const s = seq[Math.min(streak, seq.length - 1)]; return Array.isArray(s) ? anyOf(s) : s; };
+
+  // =====================================================================
+  // ? help: a worked example, one step at a time, plotted on a small graph (never the student's own numbers)
+  // =====================================================================
+  // Step fields: say, work, col (highlight), y: [i, v] (fill a cell), walk: [x, y] (dot walks across then up),
+  // points (plot every table point), rise: i (show the change from point i to i + 1), diffs, curve, verdict, mark: [x, y]
+  const HELP = {
+    fill: {
+      title: 'Filling in a table',
+      xs: [0, 1, 2, 3], ys: [1, 3, 5, 7], blankY: true, box: [-1, 4, -1, 8],
+      steps: [
+        { say: 'The rule <span class="eq">y = 2x + 1</span> tells you how to turn each x into y: <b>double x, then add 1</b>.' },
+        { col: 0, say: 'First column.', calc: [0, '2 × 0 + 1', 1], y: [0, 1], walk: [0, 1] },
+        { col: 1, say: 'Next column.', calc: [1, '2 × 1 + 1', 3], y: [1, 3], walk: [1, 3] },
+        { col: 2, say: 'Next column.', calc: [2, '2 × 2 + 1', 5], y: [2, 5], walk: [2, 5] },
+        { col: 3, say: 'Last column.', calc: [3, '2 × 3 + 1', 7], y: [3, 7], walk: [3, 7] },
+        { say: 'Done! y goes up by <b>2</b> every step, and the points make a straight line. That 2 is the number in front of x.', diffs: ['+2', '+2', '+2'], line: true }
+      ]
+    },
+    read: {
+      title: 'Reading a table',
+      xs: [-1, 0, 1, 2], ys: [-4, -1, 2, 5], box: [-2, 3, -5, 6],
+      steps: [
+        { say: 'You need two things: the <b>1st common difference</b> and <b>y when x = 0</b>. Here are the table’s points on the graph.', points: true },
+        { say: 'Subtract each y from the <b>next</b> one. On the graph that is how far you go up between dots.', work: '−1 − (−4) = <b>3</b>', diff: [0, '+3'], rise: 0 },
+        { say: 'Next pair.', work: '2 − (−1) = <b>3</b>', diff: [1, '+3'], rise: 1 },
+        { say: 'Last pair.', work: '5 − 2 = <b>3</b>', diff: [2, '+3'], rise: 2 },
+        { say: 'Up 3 every time, so the <b>1st common difference = 3</b>.' },
+        { col: 1, say: 'Now find <b>x = 0</b> in the top row and read the y underneath it: <b>y = −1</b>. It is where the line crosses the y-axis.', mark: [0, -1] }
+      ]
+    },
+    straight: {
+      title: 'Is it a straight run?',
+      xs: [0, 1, 2, 3], ys: [1, 2, 5, 10], box: [-1, 4, -1, 11],
+      steps: [
+        { say: 'Work out how much y changes from each column to the next. Here are the points.', points: true },
+        { say: 'First pair.', work: '2 − 1 = <b>1</b>', diff: [0, '+1'], rise: 0 },
+        { say: 'Next pair.', work: '5 − 2 = <b>3</b>', diff: [1, '+3'], rise: 1 },
+        { say: 'Last pair.', work: '10 − 5 = <b>5</b>', diff: [2, '+5'], rise: 2 },
+        { say: 'The differences are 1, 3, 5. They <b>change</b>, so the dots bend into a curve: <b>not straight</b>.', verdict: 'Not straight', curve: true },
+        { say: 'If every difference had been the same, the dots would sit on a <b>straight run</b>.' }
+      ]
+    }
+  };
+
+  // A small graph for the help card.
+  function helpGraph(parent, box) {
+    const [x0, x1, y0, y1] = box, U = 24, pad = 16;
+    const W = (x1 - x0) * U + pad * 2, Hh = (y1 - y0) * U + pad * 2;
+    const X = x => pad + (x - x0) * U, Y = y => pad + (y1 - y) * U;
+    const { svgEl } = window.SRFX;
+    const svg = svgEl('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'help-graph', role: 'img', 'aria-label': 'Example graph' });
+    parent.appendChild(svg);
+    let d = '';
+    for (let x = x0; x <= x1; x++) d += `M${X(x)} ${Y(y0)}V${Y(y1)}`;
+    for (let y = y0; y <= y1; y++) d += `M${X(x0)} ${Y(y)}H${X(x1)}`;
+    svgEl('path', { d, class: 'gridlines' }, svg);
+    svgEl('path', { d: `M${X(x0)} ${Y(0)}H${X(x1)}M${X(0)} ${Y(y0)}V${Y(y1)}`, class: 'axis' }, svg);
+    const t = svgEl('g', { class: 'ticks' }, svg);
+    for (let x = x0; x <= x1; x++) if (x) svgEl('text', { x: X(x), y: Y(0) + 14, 'text-anchor': 'middle' }, t).textContent = fmt(x);
+    for (let y = y0; y <= y1; y++) if (y) svgEl('text', { x: X(0) - 5, y: Y(y) + 4, 'text-anchor': 'end' }, t).textContent = fmt(y);
+    const layer = svgEl('g', null, svg);
+    return {
+      clear() { layer.innerHTML = ''; },
+      dot(x, y, cls) { return svgEl('circle', { cx: X(x), cy: Y(y), r: 6, class: 'help-dot ' + (cls || '') }, layer); },
+      line(pts, cls) { return svgEl('polyline', { points: pts.map(p => X(p.x) + ',' + Y(p.y)).join(' '), class: cls, fill: 'none' }, layer); },
+      label(x, y, text, cls) { const e = svgEl('text', { x: X(x), y: Y(y), class: 'glabel ' + (cls || '') }, layer); e.textContent = text; return e; },
+      X, Y
+    };
+  }
+
+  function showHelp(key, start) {
+    const H = HELP[key];
+    if (!H) return;
+    document.querySelectorAll('.help-overlay').forEach(o => o.remove());
+    const ov = document.body.appendChild(h(`
+      <div class="overlay help-overlay" role="dialog" aria-modal="true" aria-label="${esc(H.title)}">
+        <div class="help-card">
+          <div class="help-top"><h2 class="outline">${H.title}</h2><button class="help-close" type="button" aria-label="Close">✕</button></div>
+          <p class="help-note">Example only, with different numbers from your question.</p>
+          <div class="help-body">
+            <div class="help-graph-wrap"></div>
+            <div class="help-side">
+              <div class="help-table"></div>
+              <p class="help-say" aria-live="polite"></p>
+              <div class="help-work"></div>
+              <div class="help-count"></div>
+            </div>
+          </div>
+          <div class="help-foot">
+            <span class="help-step"></span>
+            <div class="help-actions">
+              <button class="btn small secondary" type="button" data-v="back">◀ Back</button>
+              <button class="btn small" type="button" data-v="next">Next ▶</button>
+            </div>
+          </div>
+        </div>
+      </div>`));
+    const tw = tableWidget(ov.querySelector('.help-table'), { xs: H.xs, ys: H.ys, diffs: 'show' });
+    const gr = helpGraph(ov.querySelector('.help-graph-wrap'), H.box);
+    const sayEl = ov.querySelector('.help-say'), workEl = ov.querySelector('.help-work'), countEl = ov.querySelector('.help-count');
+    const stepEl = ov.querySelector('.help-step'), backBtn = ov.querySelector('[data-v=back]'), nextBtn = ov.querySelector('[data-v=next]');
+    const yCells = [...ov.querySelectorAll('.help-table .cell.yc')];
+    const pts = H.xs.map((x, i) => ({ x, y: H.ys[i] }));
+    let k = 0, run = 0;
+    const pause = ms => new Promise(r => setTimeout(r, ms));
+
+    // Walk a dot from (0, 0) across to x, then up (or down) to y, one square at a time.
+    async function walk(x, y, token, instant) {
+      if (instant) { gr.dot(x, y, 'placed'); return; }
+      const path = [{ x: 0, y: 0 }];
+      const walker = gr.dot(0, 0, 'walker');
+      const trail = gr.line(path, 'help-trail');
+      const place = p => {
+        walker.setAttribute('cx', gr.X(p.x)); walker.setAttribute('cy', gr.Y(p.y));
+        path.push(p); trail.setAttribute('points', path.map(q => gr.X(q.x) + ',' + gr.Y(q.y)).join(' '));
+      };
+      await pause(500);
+      let cx = 0, cy = 0;
+      for (let i = 1; i <= Math.abs(x); i++) {
+        if (token !== run) return;
+        cx += Math.sign(x); place({ x: cx, y: 0 });
+        countEl.innerHTML = `${x > 0 ? 'Right' : 'Left'} <b>${i}</b>${i === Math.abs(x) ? ` (x = ${fmt(x)})` : ''}`;
+        await pause(550);
+      }
+      const across = x ? `${x > 0 ? 'Right' : 'Left'} ${Math.abs(x)}, then ` : '';
+      for (let i = 1; i <= Math.abs(y); i++) {
+        if (token !== run) return;
+        cy += Math.sign(y); place({ x: cx, y: cy });
+        countEl.innerHTML = `${across}${across ? (y > 0 ? 'up' : 'down') : (y > 0 ? 'Up' : 'Down')} <b>${i}</b>${i === Math.abs(y) ? ` (y = ${fmt(y)})` : ''}`;
+        await pause(550);
+      }
+      if (token !== run) return;
+      walker.setAttribute('class', 'help-dot placed');
+      countEl.innerHTML += ' ✓ plotted';
+    }
+    // Show the rise between point i and i + 1, growing one square at a time.
+    async function rise(i, token, instant) {
+      const a = pts[i], b = pts[i + 1], up = b.y - a.y;
+      gr.line([a, { x: b.x, y: a.y }], 'help-run');
+      const seg = gr.line([{ x: b.x, y: a.y }, { x: b.x, y: a.y }], 'help-rise');
+      const lab = gr.label(b.x + 0.15, (a.y + b.y) / 2, '', 'help-rise-label');
+      for (let s = instant ? Math.abs(up) : 1; s <= Math.abs(up); s++) {
+        if (token !== run) return;
+        const yy = a.y + Math.sign(up) * s;
+        seg.setAttribute('points', `${gr.X(b.x)},${gr.Y(a.y)} ${gr.X(b.x)},${gr.Y(yy)}`);
+        lab.textContent = sd(Math.sign(up) * s);
+        if (!instant) { countEl.innerHTML = `Up <b>${s}</b>`; await pause(550); }
+      }
+    }
+
+    function reset() {
+      if (H.blankY) yCells.forEach(c => { c.textContent = ''; c.classList.remove('pop'); });
+      ov.querySelectorAll('.help-table .cell.dc').forEach(c => { c.innerHTML = ''; });
+      H.xs.forEach((x, i) => tw.colState(i, null));
+      ov.querySelector('.help-verdict')?.remove();
+      gr.clear();
+      sayEl.innerHTML = ''; workEl.innerHTML = ''; countEl.innerHTML = '';
+    }
+    // Apply one step. Earlier steps are applied instantly; the current one animates.
+    // Start with x → use the rule → find y, one line at a time.
+    async function calc(st, token, instant) {
+      const [x, sum, y] = st.calc;
+      const rows = [
+        `<span class="calc-k">1. Start with</span><span class="calc-v"><b>x = ${fmt(x)}</b></span>`,
+        `<span class="calc-k">2. Rule</span><span class="calc-v">y = 2x + 1 → y = ${sum}</span>`,
+        `<span class="calc-k">3. Find y</span><span class="calc-v"><b>y = ${fmt(y)}</b></span>`
+      ];
+      workEl.innerHTML = '<div class="help-calc"></div>';
+      const box = workEl.firstChild;
+      for (const r of rows) {
+        if (token !== run) return;
+        box.insertAdjacentHTML('beforeend', `<div class="calc-row">${r}</div>`);
+        if (!instant) await pause(900);
+      }
+    }
+    async function apply(st, token, instant) {
+      if (st.calc && !instant) await calc(st, token, false);
+      if (token !== run) return;
+      if (st.points) pts.forEach(p => gr.dot(p.x, p.y, 'placed'));
+      if (st.y) { const c = yCells[st.y[0]]; c.textContent = fmt(st.y[1]); if (!instant) c.classList.add('pop'); }
+      if (st.diff) tw.showDiff(st.diff[0], st.diff[1]);
+      if (st.diffs) st.diffs.forEach((t2, i) => tw.showDiff(i, t2));
+      if (st.verdict && !ov.querySelector('.help-verdict')) workEl.insertAdjacentHTML('afterend', `<p class="help-verdict"><span class="toggle" aria-pressed="true">${st.verdict}</span></p>`);
+      if (st.line) gr.line([{ x: -1, y: -1 }, { x: 3.5, y: 8 }], 'help-line');
+      if (st.curve) gr.line(Array.from({ length: 31 }, (_, j) => { const x = -0.4 + j * 0.13; return { x, y: x * x + 1 }; }).filter(p => p.y <= 11), 'help-curve');
+      if (st.mark) gr.dot(st.mark[0], st.mark[1], 'mark');
+      if (st.walk) await walk(st.walk[0], st.walk[1], token, instant);
+      if (st.rise != null) await rise(st.rise, token, instant);
+    }
+    async function show(n) {
+      k = n;
+      const token = ++run;
+      reset();
+      for (let i = 0; i < k; i++) await apply(H.steps[i], token, true);
+      const st = H.steps[k];
+      H.xs.forEach((x, i) => tw.colState(i, st.col === i ? 'hl' : null));
+      sayEl.innerHTML = st.say || '';
+      workEl.innerHTML = st.work || '';
+      if (st.calc && REDUCED) await calc(st, token, true);
+      stepEl.textContent = `Step ${k + 1} of ${H.steps.length}`;
+      backBtn.disabled = k === 0;
+      nextBtn.textContent = k === H.steps.length - 1 ? 'Got it ✓' : 'Next ▶';
+      await apply(st, token, REDUCED);
+    }
+    const close = () => { run++; ov.remove(); };
+    ov.querySelector('.help-close').addEventListener('click', close);
+    backBtn.addEventListener('click', () => { if (k > 0) show(k - 1); });
+    nextBtn.addEventListener('click', () => { if (k < H.steps.length - 1) show(k + 1); else close(); });
+    ov.addEventListener('click', e => { if (e.target === ov) close(); });
+    ov.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    setTimeout(() => nextBtn.focus({ preventScroll: true }), 60);
+    show(Math.min(start || 0, H.steps.length - 1));
+  }
+
+  // =====================================================================
+  // Explore scripts
+  // =====================================================================
+  function makeEx(ctx) {
+    const { panel, session } = ctx;
+    const ex = {
+      step(i, n) { panel.setMeta(`Step ${i} of ${n}`); panel.feedback(''); panel.clearActions(); },
+      say: html => panel.say(html),
+      feedback: (html, k) => panel.feedback(html, k),
+      clearWork() { panel.work.innerHTML = ''; },
+      task: p => session.wait(p),
+      async watch(p) { panel.feedback('Watch the rider…', 'info'); await session.wait(p); panel.feedback(''); },
+      async ok(html, label) {
+        if (html) panel.feedback(html, 'good');
+        await panel.waitButton(label || 'Next ▶');
+        panel.feedback('');
+        panel.clearActions();
+      },
+      async choice(question, options, correct, success, onCorrect) {
+        const box = panel.work.appendChild(h(`<div class="choice"><p class="q">${question}</p><div class="opts"></div></div>`));
+        panel.clearActions();
+        await session.wait(new Promise(res => {
+          options.forEach((o, i) => {
+            const b = box.querySelector('.opts').appendChild(h(`<button class="opt" type="button">${o}</button>`));
+            b.addEventListener('click', () => {
+              if (i === correct) {
+                b.classList.add('ok');
+                box.querySelectorAll('.opt').forEach(x => { x.disabled = true; });
+                panel.feedback('');
+                res();
+              } else {
+                b.classList.add('bad');
+                b.disabled = true;
+                panel.feedback('Not quite. Look again and have another go.', 'bad');
+              }
+            });
+          });
+        }));
+        if (onCorrect) await session.wait(onCorrect());
+        await ex.ok(success);
+        box.remove();
+      },
+      async input(question, expected, success, pre, hint) {
+        const box = panel.work.appendChild(h(`<div class="choice"><p class="q">${question}</p></div>`));
+        const inp = numField(box, pre || '', '', pre || 'answer');
+        panel.clearActions();
+        const btn = panel.button('Check ✓');
+        setTimeout(() => inp.focus({ preventScroll: true }), 80);
+        await session.wait(new Promise(res => {
+          const go = () => {
+            const r = L.judgeNum(inp.value, expected);
+            if (r.status === 'correct') { markInput(inp, true); inp.disabled = true; btn.disabled = true; panel.feedback(''); res(); }
+            else if (r.status === 'empty') panel.feedback('Type your answer first.', 'info');
+            else if (r.status === 'invalid') panel.feedback(r.mixed ? MIXED_MSG : INVALID_MSG, 'info');
+            else if (r.status === 'rounded') panel.feedback(ROUNDED_MSG, 'info');
+            else { markInput(inp, false); panel.feedback('Not quite. ' + (hint || 'Try again.'), 'bad'); btn.scrollIntoView({ block: 'nearest' }); }
+          };
+          btn.addEventListener('click', go);
+          inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+        }));
+        await ex.ok(success);
+        box.remove();
+      }
+    };
+    return ex;
+  }
+
+  // A slope you change by dragging B. Anchor A is fixed.
+  function slopeRig(ctx, A, B0) {
+    const { g, panel } = ctx;
+    let B = { ...B0 }, lineEl = null, tri = null;
+    const watchers = [];
+    const readout = panel.work.appendChild(h('<div class="readout"></div>'));
+    g.dot(A.x, A.y, { cls: 'anchor', r: 8 });
+    const mOf = () => Q(B.y - A.y, B.x - A.x);
+    const draw = () => {
+      const m = mOf(), mv = qval(m), cv = A.y - mv * A.x;
+      if (lineEl) lineEl.remove();
+      if (tri) tri.remove();
+      lineEl = g.line(mv, cv);
+      tri = g.triangle(A, B);
+      g.idleOnLine(mv, cv, A.x - 1.5);
+      readout.innerHTML = `rise <b>${fmt(B.y - A.y)}</b> · run <b>${fmt(B.x - A.x)}</b> · m = rise ÷ run = <b>${qpretty(m)}</b>`;
+      watchers.slice().forEach(f => f(m, B));
+    };
+    const handle = g.handle(B, { constrain: q => ({ x: Math.max(q.x, A.x + 1), y: q.y }), onMove: p => { B = p; draw(); }, label: 'Slope handle' });
+    draw();
+    return {
+      until(cond) {
+        return new Promise(res => {
+          // Check right away too: the handle may already be in place from an earlier step.
+          if (cond(mOf(), B)) { res(); return; }
+          const f = (m, b) => { if (cond(m, b)) { watchers.splice(watchers.indexOf(f), 1); res(); } };
+          watchers.push(f);
+        });
+      },
+      ride() { const mv = qval(mOf()); return g.ride(L.clipLine(mv, A.y - mv * A.x)); },
+      lock() { handle.locked = true; handle.g.classList.add('locked'); },
+      unlock() { handle.locked = false; handle.g.classList.remove('locked'); }
+    };
+  }
+
+  // Base Station handle (sets c) plus a slope handle (sets m).
+  function eqRig(ctx) {
+    const { g, panel } = ctx;
+    let base = { x: 0, y: 0 }, off = { x: 1, y: 1 }, lineEl = null, tri = null;
+    const watchers = [];
+    const readout = panel.work.appendChild(h('<div class="readout big"></div>'));
+    const draw = () => {
+      const m = Q(off.y, off.x), mv = qval(m);
+      if (lineEl) lineEl.remove();
+      if (tri) tri.remove();
+      lineEl = g.line(mv, base.y);
+      tri = g.triangle(base, { x: base.x + off.x, y: base.y + off.y });
+      g.idleOnLine(mv, base.y, -5.5);
+      readout.innerHTML = `${eqStr(m, Q(base.y))}<span class="readout-sub">m = ${qpretty(m)} · c = ${fmt(base.y)}</span>`;
+      watchers.slice().forEach(f => f(m, base.y));
+    };
+    const slopeH = g.handle({ x: off.x, y: off.y }, {
+      constrain: q => ({ x: Math.max(1, q.x), y: q.y }),
+      onMove: p => { off = { x: p.x - base.x, y: p.y - base.y }; draw(); },
+      label: 'Slope handle'
+    });
+    g.handle(base, {
+      cls: 'base',
+      constrain: q => ({ x: 0, y: q.y }),
+      onMove: p => {
+        base = p;
+        slopeH.set({ x: off.x, y: Math.max(-10, Math.min(10, base.y + off.y)) });
+        draw();
+      },
+      label: 'Base Station handle'
+    });
+    draw();
+    return {
+      until(cond) {
+        return new Promise(res => {
+          if (cond(Q(off.y, off.x), base.y)) { res(); return; }
+          const f = (m, c) => { if (cond(m, c)) { watchers.splice(watchers.indexOf(f), 1); res(); } };
+          watchers.push(f);
+        });
+      },
+      ride() { const mv = off.y / off.x; return g.ride(L.clipLine(mv, base.y)); },
+      lock() { g.lockHandles(true); },
+      unlock() { g.lockHandles(false); }
+    };
+  }
+
+  async function exploreBunny(ctx) {
+    const { g, ex, panel } = ctx;
+    ex.step(1, 2);
+    ex.say('Every pair in a table is a point on the mountain. <b>x</b> is how far <b>across</b>, <b>y</b> is how far <b>up or down</b>. Tap the grid to plant a flag for each pair.');
+    const xs = [-2, -1, 0, 1, 2], pts = xs.map(x => ({ x, y: x + 1 }));
+    const tw = tableWidget(panel.work, { xs, ys: pts.map(p => p.y) });
+    const done = new Set();
+    await ex.task(new Promise(res => {
+      g.setTap(p => {
+        const i = pts.findIndex(q => q.x === p.x && q.y === p.y);
+        if (i >= 0) {
+          if (done.has(i)) return;
+          done.add(i);
+          g.flag(p.x, p.y, 'ok');
+          tw.colState(i, 'ok');
+          const left = pts.length - done.size;
+          ex.feedback(left ? `Flag planted at ${pt(p)}. ${left} to go.` : 'All five flags are down!', 'good');
+          if (!left) { g.setTap(null); res(); }
+        } else {
+          g.dropFlag(g.flag(p.x, p.y, 'bad'));
+          ex.feedback(`${pt(p)} isn't in the table. Find x first (across), then y (up or down).`, 'bad');
+        }
+      }, { coords: true });
+    }));
+    g.line(1, 1);
+    await ex.watch(g.ride(L.clipLine(1, 1), { gates: pts }));
+    await ex.ok('The rider joined your flags into one run.');
+    ex.step(2, 2);
+    ex.say('Look at the run the rider made through your flags.');
+    await ex.choice('What shape do your flags make?', ['A straight line', 'A curve', 'A zig-zag'], 0,
+      `Yes! A table from a rule like ${eq('y = x + 1')} always makes a straight line. That is why these are called <b>linear</b> graphs.`);
+  }
+
+  async function exploreGreen(ctx) {
+    const { g, ex, panel } = ctx;
+    const xs = [-1, 0, 1, 2, 3];
+    const runs = [{ name: 'Run A', m: 2, c: 1, color: '#3DF58B', cls: 'a' }, { name: 'Run B', m: 3, c: 0, color: '#19E3FF', cls: 'b' }];
+    ex.step(1, 6);
+    ex.say('Each run has a <b>rule</b> that turns x into y. Run A: double x, then add 1. Run B: multiply x by 3. Fill in <b>y</b> in both tables and watch how much y goes up each step.');
+    panel.setHelp('fill');
+    const tws = runs.map(r => {
+      const wrap = panel.work.appendChild(h(`<div class="tbl-wrap ${r.cls}"><p class="tbl-title">${r.name}: rule ${eq(eqStr(Q(r.m), Q(r.c)))} <span class="rule-words">(${ruleWords(r.m, r.c)})</span></p></div>`));
+      return tableWidget(wrap, { xs, ys: xs.map(x => r.m * x + r.c), editY: true, diffs: 'show', label: r.name });
+    });
+    const okCells = runs.map(() => new Set());
+    await ex.task(new Promise(res => {
+      runs.forEach((r, k) => {
+        tws[k].yInputs.forEach((inp, i) => {
+          const want = r.m * xs[i] + r.c;
+          const test = final => {
+            const p = L.parseNum(inp.value);
+            if (p.ok && qeq(p.q, Q(want))) {
+              if (okCells[k].has(i)) return true;
+              okCells[k].add(i);
+              markInput(inp, true);
+              inp.readOnly = true;
+              g.dot(xs[i], want, { cls: 'plot-dot ' + r.cls, r: 6 });
+              for (const j of [i - 1, i]) {
+                if (j >= 0 && j < xs.length - 1 && okCells[k].has(j) && okCells[k].has(j + 1)) tws[k].showDiff(j, '+' + r.m);
+              }
+              if (okCells[0].size + okCells[1].size === xs.length * 2) { ex.feedback(''); res(); }
+              return true;
+            } else if (final && !p.empty) {
+              markInput(inp, false);
+              ex.feedback(`Check ${r.name} at x = ${fmt(xs[i])}: y = ${r.m} × ${paren(xs[i])}${sgn(r.c)}.`, 'bad');
+            }
+          };
+          inp.addEventListener('input', () => test(false));
+          inp.addEventListener('change', () => test(true));
+          inp.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (!test(true) && !inp.readOnly) return;
+            const all = [...tws[0].yInputs, ...tws[1].yInputs];
+            const next = all.slice(all.indexOf(inp) + 1).find(x => !x.readOnly) || all.find(x => !x.readOnly);
+            if (next) { next.focus({ preventScroll: true }); next.scrollIntoView({ block: 'nearest' }); }
+          });
+        });
+      });
+      setTimeout(() => tws[0].yInputs[0].focus({ preventScroll: true }), 80);
+    }));
+    g.line(2, 1, { color: runs[0].color });
+    g.line(3, 0, { color: runs[1].color });
+    await ex.watch(g.ride(L.clipLine(3, 0)));
+    await ex.ok('Both tables done. Run B climbs <b>3</b> every step. Run A climbs <b>2</b>.');
+    ex.step(2, 6);
+    await ex.choice('Which run climbs faster?', ['Run A: y = 2x + 1', 'Run B: y = 3x'], 1, 'Right. Its y values jump by 3 every step, so it is steeper.');
+    ex.step(3, 6);
+    await ex.choice('Run B goes up by <b>3</b> every step. Where is that 3 in y = 3x?', ['The number in front of x', 'The number on the end', 'It is not in the equation'], 0,
+      'Yes! That jump is the <b>1st common difference</b>. It is also the <b>gradient</b>: how fast the run climbs.');
+    ex.step(4, 6);
+    await ex.input('In Run A, y = 2x + 1. What is y when x = 0?', Q(1), 'Yes. When x = 0, y = 1.', 'y =', 'Put x = 0 into y = 2x + 1: 2 × 0 + 1.');
+    ex.step(5, 6);
+    await ex.choice('Where is that 1 in y = 2x + 1?', ['The number in front of x', 'The number on the end'], 1,
+      'Right. The number on the end tells you where the run crosses the <b>y-axis</b>.');
+    ex.step(6, 6);
+    ex.clearWork();
+    g.clear();
+    ex.say(`Not every table makes a straight run. This one is from ${eq('y = x²')}.`);
+    const sx = [-2, -1, 0, 1, 2], sy = sx.map(x => x * x), spts = sx.map((x, i) => ({ x, y: sy[i] }));
+    const tw = tableWidget(panel.work, { xs: sx, ys: sy, diffs: 'show' });
+    L.diffsOf(sy).forEach((v, i) => tw.showDiff(i, sd(v)));
+    const flags = gateFlags(g, spts);
+    await ex.choice('Is the difference the same every time?', ['Yes', 'No'], 1,
+      'Right. The differences change, so it is <b>not</b> a straight run. The rider gets bounced over moguls! Only tables with the same difference every time are <b>linear</b>.',
+      async () => { const curve = sample(x => x * x, -2, 2); g.polyline(curve, { cls: 'run-line mogul' }); g.banner('MOGULS!', 'warn'); await g.ride(curve, { gates: flags }); });
+  }
+
+  async function exploreBlue(ctx) {
+    const { g, ex, panel } = ctx;
+    const m = -1, c = 3;
+    ex.step(1, 4);
+    ex.say('Drag the <b>orange handle</b> to slide the rider along the run. Find the two places where the run crosses an axis.');
+    g.line(m, c);
+    const readout = panel.work.appendChild(h('<div class="readout"></div>'));
+    const seen = new Set();
+    let showY = true, last = null;
+    let found;
+    const allFound = new Promise(r => { found = r; });
+    const show = p => {
+      last = p;
+      g.idleOnLine(m, c, p.x);
+      readout.innerHTML = showY ? `Rider at <b>${pt(p)}</b>` : `Rider at <b>x = ${fmt(p.x)}</b>`;
+      if (p.x === 0 && !seen.has('y')) { seen.add('y'); g.station(p, 'BASE STATION', { cls: 'cyan' }); ex.feedback('That is the <b>Base Station</b>: the run crosses the y-axis.', 'good'); }
+      if (p.y === 0 && !seen.has('x')) { seen.add('x'); g.station(p, 'SNOW LINE', { cls: 'yellow', below: true }); ex.feedback('That is the <b>Snow Line</b>: the run crosses the x-axis.', 'good'); }
+      if (seen.size === 2) found();
+    };
+    const start = { x: -4, y: 7 };
+    g.handle(start, { constrain: q => ({ x: q.x, y: m * q.x + c }), onMove: show, label: 'Rider handle. Use left and right arrow keys.' });
+    show(start);
+    await ex.task(allFound);
+    await ex.ok('You found both. The places where a run crosses the axes are its <b>intercepts</b>.');
+    ex.step(2, 4);
+    ex.say('The <b>Base Station</b> is where the run crosses the y-axis. The <b>Snow Line</b> is where it crosses the x-axis.');
+    await ex.choice('What is always true at the Base Station?', ['x = 0', 'y = 0', 'x = y'], 0,
+      'Yes. The Base Station sits on the y-axis, so x = 0. Its y value is the <b>y-intercept</b>.');
+    ex.step(3, 4);
+    await ex.choice('And at the Snow Line?', ['x = 0', 'y = 0'], 1,
+      'Right. The Snow Line sits on the x-axis, so y = 0. Its x value is the <b>x-intercept</b>.');
+    ex.step(4, 4);
+    showY = false;
+    show(last);
+    ex.say('Now read the mountain yourself. The readout only shows x this time.');
+    await ex.input('Slide the rider to x = −2. What is y there?', Q(5), 'Yes. Go across to x = −2, then up to the run: y = 5.', 'y =',
+      'Find x = −2 on the x-axis, go up to the run, then read across to the y-axis.');
+  }
+
+  async function exploreRed(ctx) {
+    const { ex } = ctx;
+    const A = { x: -2, y: -2 };
+    ex.step(1, 5);
+    ex.say('Drag the <b>orange handle</b> to change the slope. The rider always reads the run from <b>left to right</b>. Make the run go <b>downhill</b>.');
+    const rig = slopeRig(ctx, A, { x: 1, y: 1 });
+    await ex.task(rig.until(m => m.n < 0));
+    rig.lock();
+    await ex.choice('Downhill! What happened to m?', ['It became negative', 'It got bigger', 'It stayed the same'], 0,
+      'Yes. Downhill, reading left to right, means a <b>negative</b> gradient.');
+    ex.step(2, 5);
+    ex.say('Now make the run <b>flat</b>.');
+    rig.unlock();
+    await ex.task(rig.until(m => m.n === 0));
+    rig.lock();
+    await ex.choice('What is m for a flat track?', ['0', '1', 'There is no m'], 0, 'Right. No rise at all, so m = 0.');
+    ex.step(3, 5);
+    ex.say('Make it an uphill lift that is <b>steeper than m = 2</b>.');
+    rig.unlock();
+    await ex.task(rig.until(m => qval(m) > 2));
+    rig.lock();
+    await ex.choice('A steeper run has...', ['A bigger m (further from 0)', 'A smaller m'], 0, 'Yes. The steeper the run, the further m is from 0.');
+    ex.step(4, 5);
+    ex.say('Gradient is <b>rise ÷ run</b>: how far up or down for how far across.');
+    await ex.input('A run has <b>rise 6</b> and <b>run 2</b>. Predict m.', Q(3), 'm = 6 ÷ 2 = 3.', 'm =', 'Divide the rise by the run: 6 ÷ 2.');
+    ex.step(5, 5);
+    ex.say('Now build it: drag the handle to make <b>rise 6, run 2</b>.');
+    rig.unlock();
+    await ex.task(rig.until((m, B) => B.x - A.x === 2 && B.y - A.y === 6));
+    rig.lock();
+    await ex.watch(rig.ride());
+    await ex.ok('That is m = 3: up 3 for every 1 across.');
+  }
+
+  async function exploreBlack(ctx) {
+    const { g, ex } = ctx;
+    const A = { x: -4, y: -2 };
+    ex.step(1, 5);
+    ex.say('This run has <b>m = ½</b>: the rider climbs <b>1</b> for every <b>2</b> across. Drag the handle to make <b>m = ⅓</b>.');
+    const rig = slopeRig(ctx, A, { x: -2, y: -1 });
+    await ex.task(rig.until(m => qeq(m, Q(1, 3))));
+    rig.lock();
+    await ex.ok('Up 1 for every 3 across. That is m = ⅓.');
+    ex.step(2, 5);
+    ex.say('Now make <b>m = −½</b>.');
+    rig.unlock();
+    await ex.task(rig.until(m => qeq(m, Q(-1, 2))));
+    rig.lock();
+    await ex.ok('Down 1 for every 2 across. That is m = −½.');
+    ex.step(3, 5);
+    await ex.choice('In m = −½, what does the <b>2</b> on the bottom mean on the mountain?', ['How far across (the run)', 'How far up or down (the rise)', 'Where the run starts'], 0,
+      'Yes. The bottom number is the <b>run</b> and the top number is the <b>rise</b>.');
+    ex.step(4, 5);
+    g.clear();
+    ex.clearWork();
+    ex.say(`Drag the cyan <b>Base Station</b> handle up or down the y-axis to set <b>c</b>. Drag the orange handle to set the slope <b>m</b>. Make ${eq('y = ½x − 3')}.`);
+    const rig2 = eqRig(ctx);
+    await ex.task(rig2.until((m, c) => qeq(m, Q(1, 2)) && c === -3));
+    rig2.lock();
+    await ex.ok('Start at −3 on the y-axis, then up 1 for every 2 across.');
+    ex.step(5, 5);
+    ex.say(`One more. Make ${eq('y = −2x + 4')}.`);
+    rig2.unlock();
+    await ex.task(rig2.until((m, c) => qeq(m, Q(-2)) && c === 4));
+    rig2.lock();
+    await ex.watch(rig2.ride());
+    await ex.ok('Nailed it. <b>m</b> sets the slope and <b>c</b> sets where the run crosses the y-axis.');
+  }
+
+  async function exploreDouble(ctx) {
+    const { g, ex, panel } = ctx;
+    const A = { x: 1, y: 3 }, B = { x: 4, y: 9 };
+    ex.step(1, 5);
+    ex.say('No line this time, just two gates: <b>A (1, 3)</b> and <b>B (4, 9)</b>. Let\'s find the run that goes through both.');
+    const flags = gateFlags(g, [A, B]);
+    letterFlag(g, A, 'A'); letterFlag(g, B, 'B');
+    await ex.input('Call A = (x₁, y₁) and B = (x₂, y₂). How far <b>across</b> is it from A to B? (run = x₂ − x₁)', Q(3), 'run = 4 − 1 = 3.', 'run =', 'Subtract the x values: 4 − 1.');
+    ex.step(2, 5);
+    await ex.input('How far <b>up</b>? (rise = y₂ − y₁)', Q(6), 'rise = 9 − 3 = 6.', 'rise =', 'Subtract the y values: 9 − 3.');
+    g.triangle(A, B);
+    ex.step(3, 5);
+    await ex.input('So what is the gradient? (m = rise ÷ run)', Q(2), 'm = 6 ÷ 3 = 2.', 'm =', 'Divide the rise by the run: 6 ÷ 3.');
+    ex.step(4, 5);
+    await ex.input('Now find c. Put Gate A into y = 2x + c: 3 = 2 × 1 + c. What is c?', Q(1), 'c = 3 − 2 = 1.', 'c =', '3 = 2 + c. What do you add to 2 to get 3?');
+    g.line(2, 1);
+    await ex.watch(g.ride(L.clipLine(2, 1), { gates: flags }));
+    await ex.ok(`The run is ${eq('y = 2x + 1')}. That is how you get an equation from two gates.`);
+    ex.step(5, 5);
+    g.clear();
+    ex.clearWork();
+    ex.say('One trap to watch for. In this table x goes up by <b>2</b> each step, not 1.');
+    const tw = tableWidget(panel.work, { xs: [0, 2, 4], ys: [1, 5, 9], diffs: 'show' });
+    gateFlags(g, [{ x: 0, y: 1 }, { x: 2, y: 5 }, { x: 4, y: 9 }]);
+    g.line(2, 1);
+    tw.showDiff(0, '+4'); tw.showDiff(1, '+4');
+    await ex.choice('y goes up by 4 each step. What is the gradient m?', ['4', '2', '8'], 1,
+      'Yes. Each step is 2 across, so m = 4 ÷ 2 = 2. Always check how x goes up!');
+  }
+
+  // =====================================================================
+  // Runs
+  // =====================================================================
+  const RUNS = [
+    { id: 'bunny', name: 'Bunny Hill', sign: 's-bunny', color: '#3DF58B', topic: 'Plot points from a table', lesson: 'Lesson 4', explore: exploreBunny, pick: () => 'plot' },
+    { id: 'green', name: 'Green Run', sign: 's-green', color: '#3DF58B', topic: 'Tables and the 1st common difference', lesson: 'Lesson 4', explore: exploreGreen,
+      pick: orderBy(['fill', 'read', 'straight', ['fill', 'read', 'straight'], ['read', 'straight']]) },
+    { id: 'blue', name: 'Blue Run', sign: 's-blue', color: '#4D8DFF', topic: 'Intercepts and reading values', lesson: 'Lesson 4', explore: exploreBlue,
+      pick: orderBy(['tapY', 'tapX', 'xToY', 'yToX', ['tapY', 'tapX', 'xToY', 'yToX']]) },
+    { id: 'red', name: 'Red Run', sign: 's-red', color: '#FF4D5E', topic: 'Gradient: rise over run', lesson: 'Lesson 7', explore: exploreRed,
+      pick: orderBy(['gradWide', 'build', 'grad', 'build', ['grad', 'build']]) },
+    { id: 'black', name: 'Black Diamond', sign: 's-black', color: '#F4F1FF', topic: 'Fractional gradients and y = mx + c', lesson: 'Lesson 7', explore: exploreBlack,
+      pick: orderBy(['fracWide', 'eqInt', 'eqFrac', 'eqFrac', ['eqInt', 'eqFrac']]) },
+    { id: 'double', name: 'Double Black', sign: 's-double', color: '#F4F1FF', topic: 'Mixed runs and equations from two gates', lesson: 'Extension', explore: exploreDouble,
+      pick: (streak, last) => {
+        const pool = [['twoPoint', 3], ['trap', 2], ['eqFrac', 2], ['plotHard', 1], ['fill', 1], ['read', 1], ['straight', 1], ['tapX', 1], ['xToY', 1], ['yToX', 1], ['grad', 1], ['build', 1], ['frac', 1], ['eqInt', 1]]
+          .filter(p => p[0] !== last);
+        return L.weighted(pool);
+      } }
+  ];
+  // Every run is playable in teacher mode or after "Unlock all runs" on the Lift Pass.
+  const allOpen = () => TEACHER || !!save.unlockAll;
+  const unlocked = i => allOpen() || i === 0 || runStats(RUNS[i - 1].id).cleared;
+  const accuracy = s => (s.subs ? Math.round(100 * s.correct / s.subs) : null);
+
+  // =====================================================================
+  // Screens
+  // =====================================================================
+  let current = null;
+  function endCurrent() { if (current) { current.kill(); current = null; } closeOverlay(); }
+  function closeOverlay() { document.querySelectorAll('.overlay').forEach(o => o.remove()); }
+
+  function showMap() {
+    endCurrent();
+    document.title = 'Slope Rider';
+    app.innerHTML = `
+      <div class="screen map-screen">
+        <header class="title">
+          <svg class="title-art" viewBox="0 0 360 170" aria-hidden="true">
+            <rect width="360" height="170" fill="url(#g-sky)"/>
+            <rect width="360" height="170" fill="url(#p-grid20)"/>
+            <polygon points="0,120 80,70 150,110 230,50 300,100 360,70 360,170 0,170" fill="#1C0F5E" opacity=".8"/>
+            <path d="M20 40 L340 150" stroke="#FF4D5E" stroke-width="5" stroke-linecap="round" filter="url(#glow)"/>
+            <path d="M40 46 L120 74" stroke="#19E3FF" stroke-width="8" stroke-linecap="round" opacity=".45"/>
+            <g transform="translate(150 84.7) rotate(18.97)"><g class="bob"><use href="#rider" transform="scale(.82) translate(-50 -91)"/></g></g>
+          </svg>
+          <div class="title-text">
+            <p class="eyebrow">Year 8 maths · Linear graphs</p>
+            <h1 class="outline">Slope Rider</h1>
+            <p class="tag">Ride the line. Read the mountain. Write the equation.</p>
+            <div class="map-actions">
+              <button class="btn secondary" type="button" data-act="pass">🎫 Lift Pass</button>
+              ${TEACHER ? '<span class="teacher-badge">Teacher mode: every run unlocked</span>' : ''}
+              ${!TEACHER && save.unlockAll ? '<span class="teacher-badge">All runs unlocked</span><button class="linkbtn" type="button" data-act="relock">Lock them again</button>' : ''}
+            </div>
+          </div>
+        </header>
+        <p class="howto">Each run starts with <b>Explore</b> to learn the idea, then a <b>Challenge</b>. Get <b>5 right first time in a row</b> to clear the run and unlock the next one. A wrong answer is a wipeout, but you get hints and can try again.</p>
+        <div class="runs"></div>
+      </div>`;
+    const list = app.querySelector('.runs');
+    RUNS.forEach((r, i) => {
+      const s = runStats(r.id), open = unlocked(i), acc = accuracy(s);
+      const status = s.cleared ? 'Cleared ✓' : (open ? (s.subs || s.exploreDone ? 'In progress' : 'Ready') : 'Locked');
+      const card = h(`
+        <button class="run-card ${open ? '' : 'locked'} ${s.cleared ? 'cleared' : ''}" type="button" style="--glow:${r.color}" ${open ? '' : 'disabled'}>
+          <span class="rc-top"><svg class="sign" aria-hidden="true"><use href="#${r.sign}"/></svg><span class="rc-num">Run ${i + 1} · ${r.lesson}</span><span class="rc-status">${open ? '' : '🔒 '}${status}</span></span>
+          <span class="rc-name outline">${r.name}</span>
+          <span class="rc-topic">${r.topic}</span>
+          ${open ? `<span class="rc-acc">${acc === null ? 'No answers yet' : `Accuracy ${acc}% · ${s.subs} answer${s.subs === 1 ? '' : 's'}`}</span>`
+                 : `<span class="rc-acc">Clear ${RUNS[i - 1].name} to unlock</span>`}
+        </button>`);
+      if (open) card.addEventListener('click', () => startRun(i));
+      list.appendChild(card);
+    });
+    app.querySelector('[data-act=pass]').addEventListener('click', showPass);
+    const relock = app.querySelector('[data-act=relock]');
+    if (relock) relock.addEventListener('click', () => { save.unlockAll = false; persist(); showMap(); });
+    window.scrollTo(0, 0);
+  }
+
+  function showPass() {
+    endCurrent();
+    document.title = 'Lift Pass · Slope Rider';
+    app.innerHTML = `
+      <div class="screen pass-screen">
+        <button class="btn small ghost" type="button" data-act="map">◀ Map</button>
+        <div class="pass">
+          <div class="pass-top">
+            <span class="t outline">Lift Pass</span>
+            <label class="pass-name">Name <input id="pass-name" type="text" maxlength="24" autocomplete="off" placeholder="Your first name"></label>
+          </div>
+          <div class="pass-head"><span>Run</span><span>Accuracy</span></div>
+          <div class="pass-rows"></div>
+          <div class="pass-foot"></div>
+        </div>
+        <div class="unlock-zone"></div>
+        <div class="reset-zone"></div>
+      </div>`;
+    const nameInp = app.querySelector('#pass-name');
+    nameInp.value = save.name || '';
+    nameInp.addEventListener('input', () => { save.name = nameInp.value.trim(); persist(); });
+    const rows = app.querySelector('.pass-rows');
+    let clearedCount = 0, subs = 0, correct = 0;
+    RUNS.forEach((r, i) => {
+      const s = runStats(r.id), open = unlocked(i), acc = accuracy(s);
+      if (s.cleared) clearedCount++;
+      subs += s.subs; correct += s.correct;
+      const status = s.cleared ? 'Cleared ✓' : (open ? (s.subs ? 'In progress' : 'Not started') : '🔒 Locked');
+      rows.appendChild(h(`
+        <div class="prow ${open ? '' : 'locked'}">
+          <span class="runname"><svg aria-hidden="true"><use href="#${r.sign}"/></svg>${r.name}</span>
+          <span class="bar"><b style="width:${acc ?? 0}%"></b></span>
+          <span class="pct outline">${acc === null ? '–' : acc + '%'}</span>
+          <span class="pdetail">${status} · ${s.hints} hint${s.hints === 1 ? '' : 's'} · ${s.wipeouts} wipeout${s.wipeouts === 1 ? '' : 's'}</span>
+        </div>`));
+    });
+    const total = subs ? Math.round(100 * correct / subs) : null;
+    app.querySelector('.pass-foot').innerHTML = `<b>${clearedCount} of ${RUNS.length}</b> runs cleared · overall accuracy <b>${total === null ? '–' : total + '%'}</b> · bars show accuracy per run`;
+    app.querySelector('[data-act=map]').addEventListener('click', showMap);
+    const zone = app.querySelector('.reset-zone');
+    const drawReset = () => {
+      zone.innerHTML = '<button class="btn small danger-ghost" type="button">Reset progress</button>';
+      zone.querySelector('button').addEventListener('click', () => {
+        zone.innerHTML = '<div class="confirm"><p>Reset every run, your stats and your name on this device? This cannot be undone.</p><button class="btn small danger" type="button" data-v="yes">Yes, reset</button><button class="btn small secondary" type="button" data-v="no">Cancel</button></div>';
+        zone.querySelector('[data-v=yes]').addEventListener('click', () => { save = { name: '', runs: {}, unlockAll: false }; persist(); showPass(); });
+        zone.querySelector('[data-v=no]').addEventListener('click', drawReset);
+      });
+    };
+    drawReset();
+    const uz = app.querySelector('.unlock-zone');
+    const drawUnlock = () => {
+      if (TEACHER) { uz.innerHTML = '<p class="unlock-note">Teacher mode is on: every run is unlocked.</p>'; return; }
+      if (save.unlockAll) {
+        uz.innerHTML = '<p class="unlock-note">All runs are unlocked on this device.</p><button class="btn small secondary" type="button">🔒 Lock runs again</button>';
+        uz.querySelector('button').addEventListener('click', () => { save.unlockAll = false; persist(); showPass(); });
+        return;
+      }
+      uz.innerHTML = '<button class="btn small secondary" type="button">🔓 Unlock all runs</button>';
+      uz.querySelector('button').addEventListener('click', () => {
+        uz.innerHTML = '<div class="confirm ok"><p>Unlock every run on this device? You can play any run and skip Explore. Your stats are kept, and you can lock them again here.</p><button class="btn small" type="button" data-v="yes">Yes, unlock</button><button class="btn small secondary" type="button" data-v="no">Cancel</button></div>';
+        uz.querySelector('[data-v=yes]').addEventListener('click', () => { save.unlockAll = true; persist(); showPass(); });
+        uz.querySelector('[data-v=no]').addEventListener('click', drawUnlock);
+      });
+    };
+    drawUnlock();
+    window.scrollTo(0, 0);
+  }
+
+  function makeHud(root) {
+    const bar = root.querySelector('.progress b'), pct = root.querySelector('.hud-pct'), att = root.querySelector('.hud-attempt b');
+    const stage = root.querySelector('.hud-stage'), prog = root.querySelector('.hud-progress'), attWrap = root.querySelector('.hud-attempt');
+    return {
+      stage(t) {
+        stage.textContent = t;
+        stage.className = 'pill hud-stage ' + t.toLowerCase();
+        prog.hidden = t !== 'Challenge';
+        attWrap.hidden = t !== 'Challenge';
+      },
+      setStreak(n) {
+        const p = Math.min(100, Math.round(100 * n / STREAK_GOAL));
+        bar.style.width = p + '%';
+        pct.textContent = p + '%';
+        prog.setAttribute('aria-label', `${n} of ${STREAK_GOAL} in a row`);
+      },
+      setAttempt(n) { att.textContent = n; }
+    };
+  }
+
+  function startRun(i) {
+    endCurrent();
+    const run = RUNS[i];
+    const session = new Session();
+    current = session;
+    document.title = run.name + ' · Slope Rider';
+    app.innerHTML = `
+      <div class="screen run-screen" style="--glow:${run.color}">
+        <header class="hud">
+          <button class="btn small ghost" type="button" data-act="map">◀ Map</button>
+          <div class="hud-run"><svg class="sign" aria-hidden="true"><use href="#${run.sign}"/></svg><span class="hud-name outline">${run.name}</span></div>
+          <span class="pill hud-stage">Explore</span>
+          <div class="hud-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="progress"><b></b></div><span class="hud-pct outline">0%</span></div>
+          <div class="hud-attempt outline">Attempt <b>1</b></div>
+        </header>
+        <main class="stage">
+          <div class="graph-wrap"><svg class="graph" role="img" aria-label="The mountain: a coordinate grid from x = −6 to 6 and y = −10 to 10"></svg></div>
+          <section class="panel" aria-label="Instructions and answers"></section>
+        </main>
+      </div>`;
+    const g = new window.Graph(app.querySelector('svg.graph'));
+    g.color = run.color;
+    const hud = makeHud(app);
+    hud.setStreak(0);
+    const ctx = { run, idx: i, g, hud, session, panel: new Panel(app.querySelector('.panel'), session) };
+    app.querySelector('[data-act=map]').addEventListener('click', showMap);
+    window.scrollTo(0, 0);
+    playRun(ctx).catch(e => {
+      if (e === CANCEL) return;
+      console.error(e);
+      if (window.__srBootError) window.__srBootError(e && e.message || e);
+    });
+  }
+
+  async function playRun(ctx) {
+    const { run, session, g, hud } = ctx;
+    const stats = runStats(run.id);
+    const exS = new Session(session);
+    const exCtx = Object.assign({}, ctx, { session: exS, panel: new Panel(ctx.panel.el, exS) });
+    exCtx.ex = makeEx(exCtx);
+    hud.stage('Explore');
+    exCtx.panel.layout('Explore', '');
+    if (stats.exploreDone || allOpen()) {
+      const skip = exCtx.panel.extra.appendChild(h('<button class="linkbtn" type="button">Skip to Challenge ▶</button>'));
+      skip.addEventListener('click', () => exS.kill());
+    }
+    try {
+      await run.explore(exCtx);
+      stats.exploreDone = true;
+      persist();
+      exCtx.panel.setMeta('Done');
+      exCtx.panel.say('Nice work. You are ready for the <b>Challenge</b>: get 5 right first time in a row to clear the run.');
+      await exCtx.panel.waitButton('Start the Challenge ▶');
+    } catch (e) {
+      if (e !== CANCEL || session.dead) throw e;
+    }
+    exS.kill();
+    g.clear();
+    await runChallenge(ctx);
+  }
+
+  async function runChallenge(ctx) {
+    const { run, g, panel, session, hud } = ctx;
+    const stats = runStats(run.id);
+    let streak = 0, attempt = 1, lastType = null, lastKey = null;
+    hud.stage('Challenge');
+    hud.setStreak(0);
+    hud.setAttempt(1);
+    for (;;) {
+      let type = run.pick(streak, lastType), q = MAKERS[type]();
+      for (let tries = 0; q.key === lastKey && tries < 10; tries++) q = MAKERS[type]();
+      lastType = type; lastKey = q.key;
+      if (DEBUG) window.__SR = { type, q, data: q.data, streak, attempt };
+      panel.layout('Challenge', streak ? `${streak} in a row · ${STREAK_GOAL - streak} to clear` : `Get ${STREAK_GOAL} in a row to clear`);
+      g.clear();
+      if (streak === 0 && attempt === 1) g.attempt(1);
+      q.mount(ctx);
+      let wrong = 0;
+      for (;;) {
+        panel.clearActions();
+        const btn = panel.button('Check ✓');
+        let onDoc = null;
+        try {
+          await session.wait(new Promise(res => {
+            btn.addEventListener('click', res, { once: true });
+            panel.work.onkeydown = e => {
+              if (e.key !== 'Enter' || !e.target.matches('input')) return;
+              e.preventDefault();
+              // Enter in a box jumps to the next empty box first, so a half-finished answer is never marked.
+              const empty = [...panel.work.querySelectorAll('input.ans')].find(i => !i.disabled && !i.value.trim());
+              if (empty && empty !== e.target) { empty.focus(); return; }
+              res();
+            };
+            onDoc = e => {
+              if (e.key === 'Enter' && (e.target === document.body || (e.target.closest && e.target.closest('svg.graph')))) { e.preventDefault(); res(); }
+            };
+            document.addEventListener('keydown', onDoc);
+          }));
+        } finally {
+          panel.work.onkeydown = null;
+          if (onDoc) document.removeEventListener('keydown', onDoc);
+        }
+        const ans = q.read();
+        if (ans.status !== 'ok') { panel.feedback(ans.msg || INVALID_MSG, 'info'); continue; }
+        const res = q.check();
+        stats.subs++;
+        if (res.correct) stats.correct++;
+        q.lock(true);
+        panel.clearActions();
+        panel.feedback('Riding your answer…', 'info');
+        await session.wait(q.play(res));
+        if (res.correct) {
+          if (wrong === 0) streak++;
+          hud.setStreak(streak);
+          g.pulse();
+          persist();
+          if (wrong === 0) {
+            const left = STREAK_GOAL - streak;
+            panel.feedback(`<b>${cheer()}</b> ${streak} in a row.${left > 0 ? ` ${left} more to clear the run.` : ''}`, 'good');
+          } else {
+            panel.feedback('<b>Nice recovery!</b> That one doesn\'t add to your streak. Get the next one right first time to start it again.', 'good');
+          }
+          if (streak >= STREAK_GOAL) { await session.wait(wait(REDUCED ? 0 : 700)); await runCleared(ctx); return; }
+          await panel.waitButton('Next ▶');
+          break;
+        }
+        wrong++;
+        streak = 0;
+        attempt++;
+        stats.wipeouts++;
+        if (wrong < 3) stats.hints++;
+        hud.setStreak(0);
+        hud.setAttempt(attempt);
+        g.attempt(attempt);
+        panel.setMeta(`Get ${STREAK_GOAL} in a row to clear`);
+        panel.feedback(`<b>Wipeout!</b> ${res.msg || ''}`, 'bad');
+        if (wrong < 3) {
+          panel.hint(wrong, q.hint(wrong));
+          persist();
+          q.lock(false);
+          continue;
+        }
+        panel.hint(3, q.solve());
+        persist();
+        await panel.waitButton('Fresh question ▶');
+        break;
+      }
+    }
+  }
+
+  async function runCleared(ctx) {
+    const { run, idx, session, g } = ctx;
+    const stats = runStats(run.id);
+    const firstClear = !stats.cleared;
+    stats.cleared = true;
+    persist();
+    const next = RUNS[idx + 1];
+    const acc = accuracy(stats);
+    const last = !next;
+    const ov = document.body.appendChild(h(`
+      <div class="overlay" role="dialog" aria-modal="true" aria-label="Run cleared">
+        <div class="cleared-card" style="--glow:${run.color}">
+          <svg class="sign big" aria-hidden="true"><use href="#${run.sign}"/></svg>
+          <h2 class="outline">${last ? 'Mountain conquered!' : 'Run cleared!'}</h2>
+          <p class="cleared-sub">${run.name} · 5 in a row</p>
+          <div class="cleared-stats">
+            <div><b class="outline">${acc ?? 0}%</b><span>accuracy</span></div>
+            <div><b class="outline">${stats.wipeouts}</b><span>wipeouts</span></div>
+            <div><b class="outline">${stats.hints}</b><span>hints</span></div>
+          </div>
+          <p class="cleared-note">${last ? 'You cleared every run on the mountain. Show your teacher your Lift Pass!' : (firstClear ? `${next.name} is now unlocked.` : 'Run cleared again. Keep it sharp!')}</p>
+          <div class="cleared-actions">
+            ${next ? `<button class="btn" type="button" data-v="next">${next.name} ▶</button>` : '<button class="btn" type="button" data-v="pass">🎫 Lift Pass</button>'}
+            <button class="btn secondary" type="button" data-v="map">Map</button>
+          </div>
+        </div>
+      </div>`));
+    for (let k = 0; k < 4; k++) setTimeout(() => g.burst(g.X(-4 + k * 2.7), g.Y(6 - k), 14), k * 160);
+    const choice = await session.wait(new Promise(res => {
+      ov.querySelectorAll('[data-v]').forEach(b => b.addEventListener('click', () => res(b.dataset.v)));
+      setTimeout(() => { const b = ov.querySelector('[data-v]'); if (b) b.focus({ preventScroll: true }); }, 60);
+    }));
+    ov.remove();
+    if (choice === 'next') startRun(idx + 1);
+    else if (choice === 'pass') showPass();
+    else showMap();
+  }
+
+  showMap();
+  // Preview a walkthrough: #help-fill or #help-fill-3 (opens at step 3).
+  const helpLink = /help-(fill|read|straight)(?:-(\d+))?/i.exec(location.hash);
+  if (helpLink) showHelp(helpLink[1].toLowerCase(), helpLink[2] ? helpLink[2] - 1 : 0);
+  // Teacher shortcut: #teacher-run3 opens Run 3, #teacher-run3-challenge goes straight to its Challenge.
+  const deep = /run(\d)/i.exec(location.hash);
+  if (deep && RUNS[deep[1] - 1] && unlocked(deep[1] - 1)) {
+    if (/challenge/i.test(location.hash)) runStats(RUNS[deep[1] - 1].id).exploreDone = true;
+    startRun(deep[1] - 1);
+    if (/challenge/i.test(location.hash)) { const skip = document.querySelector('.pextra .linkbtn'); if (skip) skip.click(); }
+  }
+})();
+
+</script>
+</body>
+</html>
