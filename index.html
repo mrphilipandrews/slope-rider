@@ -223,6 +223,7 @@ b, strong { font-weight: 700; }
   background: var(--panel); border: 3px solid var(--ink); border-radius: 14px; box-shadow: 0 0 0 2px var(--edge);
   padding: 1rem 1.1rem 1.2rem;
 }
+.panel > * { flex-shrink: 0; }
 .phead { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .pmeta { color: var(--muted); font-size: 0.88rem; font-weight: 600; }
 .pextra { margin-left: auto; }
@@ -505,6 +506,11 @@ b, strong { font-weight: 700; }
 .numrow .help-btn { margin-left: 0; }
 .nowrap { white-space: nowrap; }
 
+/* Triple Diamond worksheet */
+.report-q .numrow.aligned .pre, .sign-row .pre { min-width: 7.4rem; }
+.toggle.ok { border-color: var(--lime); box-shadow: 0 0 0 2px var(--lime); }
+.toggle.bad { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
+
 </style>
 </head>
 <body>
@@ -570,6 +576,7 @@ b, strong { font-weight: 700; }
     <symbol id="s-red" viewBox="0 0 28 28"><rect x="3.5" y="3.5" width="21" height="21" rx="2" fill="#FF4D5E" stroke="#07041A" stroke-width="2"/></symbol>
     <symbol id="s-black" viewBox="0 0 28 28"><rect x="7" y="7" width="14" height="14" transform="rotate(45 14 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="2"/></symbol>
     <symbol id="s-double" viewBox="0 0 28 28"><rect x="2.8" y="9.3" width="9.4" height="9.4" transform="rotate(45 7.5 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.8"/><rect x="15.8" y="9.3" width="9.4" height="9.4" transform="rotate(45 20.5 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.8"/></symbol>
+    <symbol id="s-triple" viewBox="0 0 28 28"><rect x="1.2" y="10.9" width="6.2" height="6.2" transform="rotate(45 4.3 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.5"/><rect x="10.9" y="10.9" width="6.2" height="6.2" transform="rotate(45 14 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.5"/><rect x="20.6" y="10.9" width="6.2" height="6.2" transform="rotate(45 23.7 14)" fill="#07041A" stroke="#F4F1FF" stroke-width="1.5"/></symbol>
   </defs>
 </svg>
 
@@ -883,6 +890,22 @@ b, strong { font-weight: 700; }
     }
   }
 
+  // Triple Diamond: a worksheet-style line with dots on whole-number points, the y-intercept among them.
+  // opts.sign: 1 or -1 forces uphill or downhill. opts.frac: true for a fractional gradient, false for a whole number.
+  function genReport(opts = {}) {
+    for (;;) {
+      const frac = opts.frac === undefined ? chance(0.5) : opts.frac;
+      let p, q;
+      if (frac) [p, q] = pick(FRACS.filter(f => f[1] <= 3)); else { p = pick(nonZero(4)); q = 1; }
+      if (opts.sign && Math.sign(p) !== opts.sign) continue;
+      const c = randInt(-5, 5);
+      const step = q > 1 ? q : (Math.abs(p) >= 3 ? 1 : 2);
+      const gates = [-2, -1, 0, 1, 2].map(k => ({ x: k * step, y: p * k * step / q + c })).filter(inBox);
+      if (gates.length < 3 || !gates.some(g => g.x > 0)) continue;
+      return { m: Q(p, q), c: Q(c), gates: gates.slice(0, 4), step };
+    }
+  }
+
   // Double Black: equation from two gates.
   function genTwoPoint() {
     for (;;) {
@@ -924,7 +947,7 @@ b, strong { font-weight: 700; }
     normalise, parseNum, judgeNum, parseEq, roundedGradient,
     inBox, clipLine, pathTo, diffsOf, keyOf, diagnose,
     genPlot, genTable, genStraight, genInterceptLine, genBlue, genReadGradient, genBuildRun,
-    genFracGradient, genEquation, genTwoPoint, genTrap, checkPlot
+    genFracGradient, genEquation, genTwoPoint, genTrap, genReport, checkPlot
   };
   root.SRL = SRL;
   if (typeof module !== 'undefined' && module.exports) module.exports = SRL;
@@ -1620,7 +1643,7 @@ b, strong { font-weight: 700; }
   }
   function stepList(items) { return `<ol class="steps">${items.map(s => `<li>${s}</li>`).join('')}</ol>`; }
   // Check the equation at a point on the run: y = m × x + c.
-  const checkStep = (d, P) => `<b>Check it.</b> At x = ${fmt(P.x)}: y = ${qpretty(d.m)} × ${paren(P.x)} ${d.c.n < 0 ? '−' : '+'} ${Math.abs(d.c.n)} = ${fmt(P.y)}. The point ${pt(P)} is on the run ✓`;
+  const checkStep = (d, P) => `<b>Check it.</b> At x = ${fmt(P.x)}: y = ${qpretty(d.m)} × ${paren(P.x)}${d.c.n ? ` ${d.c.n < 0 ? '−' : '+'} ${Math.abs(d.c.n)}` : ''} = ${fmt(P.y)}. The point ${pt(P)} is on the run ✓`;
 
   // Read a list of number inputs. Returns { status } or { status: 'ok', vals }.
   function readNums(inputs, emptyMsg, expected) {
@@ -2279,6 +2302,107 @@ b, strong { font-weight: 700; }
     };
   }
 
+  // Triple Diamond: the Lesson 7 worksheet. Y-intercept, positive or negative, rise ÷ run, then y = mx + c.
+  function qReport(d) {
+    const { gates: gts } = d;
+    const base = gts.find(p => p.x === 0), next = gts.find(p => p.x > 0);
+    let g, panel, cInp, riseInp, runInp, mInp, f, signBtns, sign = null, vals, eqAns;
+    return {
+      key: 'report' + qpretty(d.m) + ',' + d.c.n,
+      mount(ctx) {
+        ({ g, panel } = ctx);
+        panel.say('Fill in the <b>worksheet</b> for this run, top to bottom. Use the flags to count the rise and run.');
+        g.line(qval(d.m), qval(d.c));
+        this.gates = gateFlags(g, gts);
+        g.idleOnLine(qval(d.m), qval(d.c), -5.3);
+        const w = panel.work;
+        w.classList.add('report-q');
+        cInp = numField(w, 'Y-intercept =', '', 'y-intercept');
+        const row = w.appendChild(h('<div class="numrow sign-row" role="group" aria-label="Is the slope positive or negative?"><span class="pre">Slope is</span><span class="verdict"><button type="button" class="toggle" data-v="1">Positive</button><button type="button" class="toggle" data-v="-1">Negative</button></span></div>'));
+        signBtns = [...row.querySelectorAll('.toggle')];
+        signBtns.forEach(b => {
+          b.setAttribute('aria-pressed', 'false');
+          b.addEventListener('click', () => {
+            sign = +b.dataset.v;
+            signBtns.forEach(x => { x.setAttribute('aria-pressed', String(x === b)); x.classList.remove('ok', 'bad'); });
+          });
+        });
+        riseInp = numField(w, 'rise =', '', 'rise');
+        runInp = numField(w, 'run =', '', 'run');
+        mInp = numField(w, 'Slope m =', '', 'slope m, rise divided by run');
+        [cInp, riseInp, runInp, mInp].forEach(i => i.closest('.numrow').classList.add('aligned'));
+        w.appendChild(h('<p class="tip">Slope = rate of change = rise ÷ run. Count the rise up (+) or down (−), and the run across.</p>'));
+        f = eqField(w);
+        setTimeout(() => cInp.focus({ preventScroll: true }), 80);
+      },
+      read() {
+        const r = readNums([cInp, riseInp, runInp, mInp], 'Fill in every box: y-intercept, rise, run and m.', [null, null, null, d.m]);
+        if (r.status !== 'ok') return r;
+        if (!sign) return { status: 'empty', msg: 'Choose whether the slope is <b>Positive</b> or <b>Negative</b>.' };
+        if (r.vals[2].n === 0) return { status: 'invalid', msg: 'The run can’t be 0. Count how far across you go between two flags.' };
+        if (!f.m.value.trim() || !f.c.value.trim()) return { status: 'empty', msg: 'Fill in both boxes in y = mx + c. If there is no number on the end, type 0.' };
+        eqAns = L.parseEq(f.m.value, f.c.value);
+        if (eqAns.status === 'invalid') return { status: 'invalid', msg: eqAns.mixed ? MIXED_MSG : INVALID_MSG };
+        if (L.roundedGradient(eqAns, d.m)) return { status: 'rounded', msg: ROUNDED_MSG };
+        vals = r.vals;
+        return r;
+      },
+      check() {
+        const [c, rise, run, m] = vals;
+        const okC = qeq(c, d.c), okSign = sign === L.qsign(d.m), okRR = qeq(L.qdiv(rise, run), d.m), okM = qeq(m, d.m);
+        const okEq = qeq(eqAns.m, d.m) && qeq(eqAns.c, d.c);
+        markInput(cInp, okC); markInput(riseInp, okRR); markInput(runInp, okRR); markInput(mInp, okM);
+        markInput(f.m, qeq(eqAns.m, d.m)); markInput(f.c, qeq(eqAns.c, d.c));
+        signBtns.forEach(b => { b.classList.remove('ok', 'bad'); if (+b.dataset.v === sign) b.classList.add(okSign ? 'ok' : 'bad'); });
+        const msg = [];
+        if (!okC) msg.push('Y-intercept: where does the run cross the y-axis?');
+        if (!okSign) msg.push('Read the run left to right: uphill is positive, downhill is negative.');
+        if (!okRR) msg.push('Check the rise and run: from one flag to the next, count across, then up (+) or down (−).');
+        if (!okM) msg.push(okRR ? 'Now divide: m = rise ÷ run.' : slopeMsg(m, d.m));
+        if (!okEq) msg.push(okM && okC ? 'Copy your m and y-intercept into y = mx + c.' : lineMsg(L.diagnose(eqAns.m, eqAns.c, d.m, d.c)));
+        // Worksheet order: point at the first wrong part, top to bottom.
+        const more = msg.length > 1 ? ` Then check the other boxes marked red.` : '';
+        return { correct: okC && okSign && okRR && okM && okEq, msg: (msg[0] || '') + more };
+      },
+      async play(res) {
+        g.clearLayer('scratch');
+        if (res.correct) { await rideTrue(g, d.m, d.c, this.gates); return; }
+        if (eqAns.m.n !== 0 && L.qsign(eqAns.m) !== L.qsign(d.m)) g.arrowFlash();
+        await rideStudent(g, eqAns.m, eqAns.c, this.gates);
+      },
+      hint(level) {
+        if (level === 1) return 'Start at the top. The <b>y-intercept</b> is where the run crosses the y-axis. Then read the run <b>left to right</b>: uphill means a positive slope, downhill means negative.';
+        g.station(base, 'Y-INTERCEPT', { cls: 'cyan', layer: 'guides' });
+        g.triangle(base, next);
+        return `Y-intercept = ${fmt(d.c.n)}. From ${pt(base)} to ${pt(next)}: run ${next.x - base.x}, rise ${fmt(next.y - base.y)}. Slope = rise ÷ run.`;
+      },
+      solve() {
+        g.clearLayer('guides');
+        g.station(base, 'Y-INTERCEPT', { cls: 'cyan', layer: 'guides' });
+        g.triangle(base, next);
+        const mistake = eqMistake(eqAns, d);
+        const rise = next.y - base.y, run = next.x - base.x;
+        cInp.value = fmt(d.c.n); riseInp.value = fmt(rise); runInp.value = fmt(run); mInp.value = qInput(d.m);
+        f.m.value = qInput(d.m); f.c.value = fmt(d.c.n);
+        [cInp, riseInp, runInp, mInp, f.m, f.c].forEach(i => markInput(i, true));
+        signBtns.forEach(b => { const on = +b.dataset.v === L.qsign(d.m); b.setAttribute('aria-pressed', String(on)); b.classList.remove('ok', 'bad'); if (on) b.classList.add('ok'); });
+        const up = d.m.n > 0;
+        return mistake + stepList([
+          `<b>Y-intercept.</b> The run crosses the y-axis at ${pt(base)}, so the <b>y-intercept = ${fmt(d.c.n)}</b>.`,
+          `<b>Positive or negative?</b> Reading left to right, the run goes <b>${up ? 'uphill' : 'downhill'}</b>, so the slope is <b>${up ? 'positive' : 'negative'}</b>.`,
+          ...countSteps(base, next),
+          `<b>Write the equation.</b> Put m and the y-intercept into y = mx + c: ${eq(eqStr(d.m, d.c))}`,
+          checkStep(d, next)
+        ]);
+      },
+      lock(on) {
+        [cInp, riseInp, runInp, mInp].forEach(i => { i.disabled = on; });
+        signBtns.forEach(b => { b.disabled = on; });
+        f.lock(on);
+      }
+    };
+  }
+
   // Each maker builds fresh data, then the question. q.data keeps the data for debugging.
   const make = (build, gen) => () => { const d = gen(); const q = build(d); q.data = d; return q; };
   const MAKERS = {
@@ -2299,7 +2423,12 @@ b, strong { font-weight: 700; }
     eqInt: make(qEquation, () => L.genEquation('int')),
     eqFrac: make(qEquation, () => L.genEquation('frac')),
     twoPoint: make(qTwoPoint, () => L.genTwoPoint()),
-    trap: make(qTrap, () => L.genTrap())
+    trap: make(qTrap, () => L.genTrap()),
+    repUp: make(qReport, () => L.genReport({ sign: 1, frac: false })),
+    repDown: make(qReport, () => L.genReport({ sign: -1, frac: false })),
+    repFracUp: make(qReport, () => L.genReport({ sign: 1, frac: true })),
+    repFracDown: make(qReport, () => L.genReport({ sign: -1, frac: true })),
+    rep: make(qReport, () => L.genReport())
   };
   const anyOf = list => list[Math.floor(Math.random() * list.length)];
   // Question order by streak, so every type comes up on the way to 5 in a row.
@@ -2913,6 +3042,40 @@ b, strong { font-weight: 700; }
       'Yes. Each step is 2 across, so m = 4 ÷ 2 = 2. Always check how x goes up!');
   }
 
+  async function exploreTriple(ctx) {
+    const { g, ex } = ctx;
+    // The first worked example from the Lesson 7 worksheet: y = ½x + 2.
+    const pts = [{ x: -4, y: 0 }, { x: -2, y: 1 }, { x: 0, y: 2 }, { x: 2, y: 3 }];
+    ex.step(1, 6);
+    ex.say('This is the worksheet from Lesson 7. You describe the run in four parts: the <b>y-intercept</b>, <b>positive or negative</b>, the <b>slope</b>, then the <b>equation</b>.');
+    g.line(0.5, 2);
+    const flags = gateFlags(g, pts);
+    await ex.input('Where does the run cross the y-axis? That y value is the <b>y-intercept</b>.', Q(2), 'Yes. It crosses at (0, 2), so the y-intercept is 2.', 'Y-intercept =', 'Find where the line meets the y-axis, the vertical line where x = 0.');
+    g.station({ x: 0, y: 2 }, 'Y-INTERCEPT', { cls: 'cyan', layer: 'guides' });
+    ex.step(2, 6);
+    await ex.choice('Read the run from <b>left to right</b>. Is the slope positive or negative?', ['Positive: it goes uphill', 'Negative: it goes downhill'], 0,
+      'Right. Uphill, reading left to right, is a <b>positive</b> slope.');
+    ex.step(3, 6);
+    g.triangle({ x: 0, y: 2 }, { x: 2, y: 3 });
+    await ex.input('From the flag at (0, 2) to the flag at (2, 3), how far <b>across</b> is it? That is the <b>run</b>.', Q(2), 'Yes. 2 across, so run = 2.', 'run =', 'Count the squares across from x = 0 to x = 2.');
+    await ex.input('And how far <b>up</b>? That is the <b>rise</b>.', Q(1), 'Yes. Up 1, so rise = 1.', 'rise =', 'Count the squares up from y = 2 to y = 3.');
+    ex.step(4, 6);
+    await ex.input('Slope = rise ÷ run. What is m?', Q(1, 2), 'm = 1 ÷ 2 = ½. It does not divide exactly, so leave it as a fraction.', 'm =', 'Divide the rise by the run: 1 ÷ 2. Write it as a fraction, 1/2.');
+    ex.step(5, 6);
+    await ex.choice('Put m and the y-intercept into y = mx + c. Which is the equation?', ['y = ½x + 2', 'y = 2x + ½', 'y = 2x + 2'], 0,
+      'Yes! m = ½ goes in front of x, and the y-intercept 2 goes on the end.',
+      () => g.ride(L.clipLine(0.5, 2), { gates: flags }));
+    ex.step(6, 6);
+    g.clear();
+    ex.clearWork();
+    ex.say('The second worked example from the worksheet. Same four parts.');
+    g.line(2 / 3, -4);
+    gateFlags(g, [{ x: 0, y: -4 }, { x: 3, y: -2 }, { x: 6, y: 0 }]);
+    g.triangle({ x: 0, y: -4 }, { x: 3, y: -2 });
+    await ex.choice('The y-intercept is −4. From (0, −4) to (3, −2) is run 3, rise 2. Which equation is it?', ['y = ⅔x − 4', 'y = 3/2x − 4', 'y = ⅔x + 4'], 0,
+      'Right. m = rise ÷ run = 2 ÷ 3 = ⅔, and the y-intercept −4 goes on the end. Downhill runs work the same way, with a negative rise. Now try the Challenge!');
+  }
+
   // =====================================================================
   // Runs
   // =====================================================================
@@ -2931,7 +3094,9 @@ b, strong { font-weight: 700; }
         const pool = [['twoPoint', 3], ['trap', 2], ['eqFrac', 2], ['plotHard', 1], ['fill', 1], ['read', 1], ['straight', 1], ['tapX', 1], ['xToY', 1], ['yToX', 1], ['grad', 1], ['build', 1], ['frac', 1], ['eqInt', 1]]
           .filter(p => p[0] !== last);
         return L.weighted(pool);
-      } }
+      } },
+    { id: 'triple', name: 'Triple Diamond', sign: 's-triple', color: '#F4F1FF', topic: 'Describe a graph and write y = mx + c', lesson: 'Lesson 7', explore: exploreTriple,
+      pick: orderBy(['repUp', 'repDown', 'repFracUp', 'repFracDown', 'rep']) }
   ];
   // Every run is playable in teacher mode or after "Unlock all runs" on the Lift Pass.
   const allOpen = () => TEACHER || !!save.unlockAll;
